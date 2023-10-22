@@ -1,4 +1,6 @@
 
+using module 'C:\Users\johns\Projects\JRiverTools\Release\0.2.0\JRiverTools.psm1'
+
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 . 'C:\Users\johns\Tools\PSScripts\PSIncludeFiles\includeUtilities.ps1'
@@ -6,6 +8,9 @@
 . 'C:\Users\johns\Tools\PSScripts\PSIncludeFiles\includeWWParityVars.ps1'
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
+
+
+
 Import-Module ListUtils -Force
 Import-Module DateUtils -Force
 Import-Module PathUtils -Force
@@ -15,12 +20,9 @@ Import-Module FileHeaderUtils -Force
 Import-Module VistaAlAguaSecurityDetails -Force
 
 
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\GetLocalAlbumToCopyToHTPC.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\GetArtistPathFromHTPC.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\private\Get-MusicPathsFromHTPCForMusicSource.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\Get-HTPCAlbumDetails.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\Copy-LocalAlbumsToHTPC.ps1'
-
+<# Display and debug vars #>
+[string]$private:spaceTwo = $(' '*2)
+[string]$private:spacer = $(' '*4)
 
 $VerbosePreference = 'SilentlyContinue'  # $oldVerbose
 
@@ -63,6 +65,7 @@ $driveLetterToNumberMap = @{"I" = 1;
                                                             );
 }
 
+$private:remoteArtistAlbumObjs = [System.Collections.Generic.list[object]]::New()
 
 [System.Collections.ArrayList]$local:ArtistsToCheck = @()
 [System.Collections.ArrayList]$local:SourcesToCheck = @()
@@ -124,27 +127,36 @@ try {
     <#
         TBD - Derive albums to copy based on type and date
     #>
-    $localFolder = GetLocalAlbumToCopyToHTPC -ArtistNamesToCopy "Cody", "Ashley" -MusicFileSourse "Flac", "Bandcamp" -FirstDateToCheckSeed $FilterStartDate 
+
+    Write-Host "$($spacer*2) Get the albums to copy..."
+    $localFolder = GetLocalAlbumToCopyToHTPC -ArtistNamesToCopy "Cody", "Ashley" -MusicFileSourse "Flac", "Bandcamp" `
+                        -FirstDateToCheckSeed $FilterStartDate -DaysBackToCheck 60
 
     $artistList = ""
     $sourceList = ""
-    
+
 
     $localFolder | ForEach-Object {
 
+        $_
+        
         if (-not $ArtistsToCheck.Contains($($_.ArtistName))) {
             <# Action to perform if the condition is true #>
             $artistList += $( '"' + $_.ArtistName + '"' )
             $artistList += ','
             [void]$ArtistsToCheck.Add($_.ArtistName)
+            Write-Host "$($spacer*2)$($spaceTwo) Found $($_.ArtistName)" 
         }
         if (-not $SourcesToCheck.Contains($($_.MusicSource))) {
             <# Action to perform if the condition is true #>
             $sourceList += $_.MusicSource
             $sourceList += ','
             [void]$SourcesToCheck.Add($_.MusicSource)
+            Write-Host "$($spacer*2)$($spaceTwo) Found $($_.MusicSource)" 
         }
     }
+
+    break
 
     if ($artistList.EndsWith(',')) {
         <# Action to perform if the condition is true #>
@@ -183,17 +195,30 @@ try {
     <#
         Also - pass to copy object, pull artist names (and alternates) from passed object
     #>
-    $remoteArtistAlbumObjs = Get-HTPCAlbumDetails -ArtistPathsToCheckObjs $remoteArtistPathObjs `
+    # $remoteArtistAlbumObjs = 
+    Get-HTPCAlbumDetails -ArtistPathsToCheckObjs $remoteArtistPathObjs `
                                 -ArtistAlbumToCheckObjs $localFolder  `
-                                -remoteSessionObj $remoteSessionObj 
+                                -remoteSessionObj $remoteSessionObj  | ForEach-Object {
+
+                                    $_ | Where-Object {$_.ArtistName -eq 'Ashley McBryde'}
+
+                                    # -ArtistAlbumToCopyObjs $_ 
+                                    $_ | Copy-LocalAlbumsToHTPC -remoteSessionObj $remoteSessionObj -WhatIf -Verbose -UpdateExisting
+
+                                }
 
 
 
-    $remoteArtistAlbumObjs
+    
+
+    break
 
     $remoteArtistAlbumObjs.Count
 
-    Copy-LocalAlbumsToHTPC -ArtistAlbumToCopyObjs $remoteArtistAlbumObjs -remoteSessionObj $remoteSessionObj -WhatIf -Verbose -UpdateExisting
+    $remoteArtistAlbumObjs | Select-Object  -First 1
+
+
+    
 
 
     $timeStr = Get-FormattedTimeString -startTimestamp $startDateTime 

@@ -1,33 +1,17 @@
-
-class AlbumTrack {
-    <# Define the class. Try constructors, properties, or methods. #>
-}
-
-class Location {
-    <# Define the class. Try constructors, properties, or methods. #>
-    [string]$Drive
-    [string]$Path
-}
-
-# Debug
-
-. 'C:\Users\johns\Projects\JRiverTools\enums\MusicSources.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\enums\MusicEncodings.ps1'
-
 class MusicAlbum {
     <# Define the class. Try constructors, properties, or methods. #>
 
     [string]$ArtistName
     [string]$AlbumName
+    [string] $Genre
     # [string]$Drive
     # [string]$TargetAlbumPath
     # [string]$SourceAlbumPath
-    [Location] $Location = $null
+    [ItemLocation] $Location = $null
     [MusicEncodings]$Encoding = 'flac'
     [MusicSources]$PurchaseSource = 'cd'
-    [int64]$FreeSpaceBytes = 0
-    [int64]$UsedSpaceBytes = 0
-    [bool]$TargetFileFound = $false
+    [int64]$AlbumSizeBytes = 0
+
     [hashtable]$AlbumTracks = [ordered]@{}
     [int]$TracksFound = $this.AlbumTrackHashes.Count
 

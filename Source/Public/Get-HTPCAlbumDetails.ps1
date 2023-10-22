@@ -83,8 +83,9 @@ function Get-HTPCAlbumDetails {
 
         $private:AlbumTracks = $null
 
-        [PSCustomObject[]]$private:TrackDetails = @{}
-        
+        # [PSCustomObject[]]$private:TrackDetails = @{}
+        $private:TrackDetails = [System.Collections.Generic.list[object]]::New()
+
         [string]$private:TrackName = $null
         [string]$private:TrackPath = $null
         [string]$private:QualifiedTrackName = $null
@@ -319,8 +320,9 @@ function Get-HTPCAlbumDetails {
                                             } -ArgumentList $AlbumTracks, $hashAlgo, $($ArtistAlbumFolderObj.FullName), $TrackDetails 
 
 
-                        Write-Verbose "$($spacer*5) Found <$AlbumName> with <$($AlbumTracks.Count)> ($($TrackDetails.Count)) ($($TrackDetails.Keys))$TrackTag to transfer for $($ArtistAlbumFolderObj.Parent)"
-                        # $TrackDetails
+                        Write-Verbose "$($spacer*5) Found <$AlbumName> with <$($AlbumTracks.Count)> ($($TrackDetails.Count)) (($($TrackDetails[0].HashAlgoUsed))) $TrackTag"
+                        Write-Verbose "$($spacer*5) to transfer for $($ArtistAlbumFolderObj.Parent)"
+                        $TrackDetails | Select-Object -First 1
                         Write-Verbose "$($spacer*4)$($spaceTwo) $('-'*60)"
                         # $ArtistAlbumFolderObj
 

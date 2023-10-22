@@ -38,7 +38,7 @@ function Copy-LocalAlbumsToHTPC {
         [ValidateNotNullOrEmpty()]
         $remoteSessionObj,
 
-        [parameter(Mandatory = $false, ValueFromPipeline = $true)]
+        [parameter(Mandatory = $false)]
         [ValidateSet('SHA1', 'SHA256', 'SHA384', 'SHA512', 'MD5')]
         [string] $hashAlgo = 'MD5', 
 
@@ -50,19 +50,21 @@ function Copy-LocalAlbumsToHTPC {
     )
     
     begin {
-        
+        [string]$private:TrackName = $null
     }
     
     process {
         try {
 
             Write-Verbose ""
-            Write-Verbose "$($spacer*2) Checking whether to copy $($remoteArtistAlbumObjs.Count) albums to HTPC."
+            Write-Verbose "$($spacer*2) Checking whether to copy $($ArtistAlbumToCopyObjs.Count) albums to HTPC."
             Write-Verbose "$($spacer*1) $('-'*60)"
 
-            :albumLoop foreach ($LocalAlbum in $remoteArtistAlbumObjs) {
+            :albumLoop foreach ($LocalAlbum in $ArtistAlbumToCopyObjs) {
                 # $LocalAlbum
-                
+                if ($null -eq $($LocalAlbum.AlbumName) -or $($LocalAlbum.AlbumName).Length -eq 0) {
+                    continue albumLoop;
+                }
                 <#
                     Find out where that artist lives on HTPC
                     Check whether the album is already there
@@ -119,7 +121,13 @@ function Copy-LocalAlbumsToHTPC {
                 $ArtistName = $($LocalAlbum.ArtistName)
                 $AlbumName = $($LocalAlbum.AlbumName)
                 $AlbumSourcePath = (Join-Path $($LocalAlbum.SourceAlbumPath) $AlbumName )
-                $AlbumExistsOnHTPC = $LocalAlbum.TargetFileFound
+                if ($true -eq ($LocalAlbum.PSobject.Properties.name -match "TargetFileFound")) {
+                    $AlbumExistsOnHTPC = $LocalAlbum.TargetFileFound
+                }
+                else {
+                    $AlbumExistsOnHTPC = $false
+                }
+                
         
                 $AlbumTargetPath = $LocalAlbum.TargetAlbumPath
                 $MusicSource = $LocalAlbum.MusicSource
@@ -129,7 +137,6 @@ function Copy-LocalAlbumsToHTPC {
                 Write-Verbose "$($spacer*3) Source Path: <$($LocalAlbum.SourceAlbumPath)>"
                 Write-Verbose "$($spacer*3) <$AlbumExistsOnHTPC><$UpdateExisting> "
 
-                
                             
                 if ($AlbumExistsOnHTPC -and $UpdateExisting) {
                     <# 
@@ -158,10 +165,10 @@ function Copy-LocalAlbumsToHTPC {
                     Write-Verbose "$($spacer*3) Debug"
                     Write-Verbose "$($spacer*3) $('-'*45)"
 
-                    $LocalAlbum.AlbumTrackHashes
-                    $LocalAlbum.AlbumName
                     
-                    $hashAlgo = $LocalAlbum.AlbumTrackHashes[$($FirstTrackDtl.Name)]['HashAlgoUsed']
+                    # $hashAlgo = $LocalAlbum.AlbumTrackHashes[$($FirstTrackDtl.Name)]['HashAlgoUsed']
+                    <# Not a hash - rather a list of objects #>
+                    $hashAlgo = ($($LocalAlbum.AlbumTrackHashes) | Where-Object { $_.TrackName -eq $($FirstTrackDtl.Name)} | Select-Object -First 1).HashAlgoUsed
 
                     Write-Verbose "$($spacer*3) Found <$AlbumName> Sample Track --> ($FirstTrackDtl) <$hashAlgo>"
 
@@ -169,14 +176,35 @@ function Copy-LocalAlbumsToHTPC {
                     $LocalAlbumTracks | ForEach-Object {
                         $TrackHashResults = $null
                         $TrackHashVal = $null
+                        $TrackName  = $_.Name
+                        <#
+                            LastWriteTime : 9/14/2023 9:18:08 AM
+                            Length        : 29905491
+                            Name          : 01 Ashley McBryde - Made For This.flac
+                        #>
 
-                        $QualifiedTrackName = (Join-Path $AlbumSourcePath $_)
+                        $QualifiedTrackName = (Join-Path $AlbumSourcePath $TrackName)
+
+                        Write-Verbose "$($spacer*3) Getting the <$hashAlgo> Hash for <$QualifiedTrackName>"
 
                         $TrackHashResults = Get-FileHash -Path $QualifiedTrackName -Algorithm $hashAlgo               
                         $TrackHashVal = $TrackHashResults."Hash"
 
+                        Write-Verbose "$($spacer*3) Found <$TrackHashVal> - <$hashAlgo> Hash for <$TrackName>"
+
                         <# Update the source hash #>
-                        $LocalAlbum.AlbumTrackHashes[$_]['LocalHashVal'] = $TrackHashVal
+                        $($LocalAlbum.AlbumTrackHashes) | Where-Object { $_.TrackName -eq $TrackName} `
+                            | ForEach-Object {
+                                <# Assigne the value to any that match: #>
+
+                                <# To Do:  
+                                    Use a copy object with the local and remote hash values 
+                                    (See VAABuild Copy Objects )
+                                    #>
+                                $_.LocalHashVal = = $TrackHashVal
+                            }
+
+                        # $LocalAlbum.AlbumTrackHashes[$_]['LocalHashVal'] = $TrackHashVal
 
 
                     }
