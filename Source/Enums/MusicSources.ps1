@@ -8,5 +8,6 @@ enum MusicSources {
     dvd = 32
     hdtracks = 64
     tidal = 128
+    primemusic = 256
     unknown = 0
 }
