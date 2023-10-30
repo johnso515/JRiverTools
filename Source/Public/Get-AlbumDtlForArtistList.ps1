@@ -164,12 +164,12 @@ function Get-AlbumDtlForArtistList {
 
         try {
             Write-Debug ''
-            Write-Debug "$($spacer*1) Found $($PSCmdlet.ParameterSetName) parameter set."
+            Write-Debug "$($spacer*2) Found $($PSCmdlet.ParameterSetName) parameter set."
             if ($PSBoundParameters.ContainsKey('FirstDateToCheckSeed')) {
-                Write-Debug "$($spacer*1)$($spaceTwo) Passed Start Date: $($FirstDateToCheckSeed.ToString('MM/dd/YY HH:mm'))"
+                Write-Debug "$($spacer*2)$($spaceTwo) Passed Start Date: $($FirstDateToCheckSeed.ToString('MM/dd/YY HH:mm'))"
             }
             if ($PSBoundParameters.ContainsKey('DaysBackToCheck')) { 
-                Write-Debug "$($spacer*1)$($spaceTwo) Passed Days Back: $($DaysBackToCheck.ToString().PadLeft(3))"
+                Write-Debug "$($spacer*2)$($spaceTwo) Passed Days Back: $($DaysBackToCheck.ToString().PadLeft(3))"
             }
             Write-Debug ''
 
@@ -181,7 +181,7 @@ function Get-AlbumDtlForArtistList {
                 $baseDrivePath = $LocationList.GetPathString()
                 if (-not (Test-Path $baseDrivePath)) {
                     <# Action to perform if the condition is true #>
-                    Throw "$($spacer*1) $baseDrivePath is invalid"
+                    Throw "$($spacer*2) $baseDrivePath is invalid"
                     
                 } 
             }
@@ -190,7 +190,7 @@ function Get-AlbumDtlForArtistList {
                 $RemotePathDetailExists = Invoke-Command -Session $remoteSessionObj `
                             -ScriptBlock {  ($true -eq (Test-Path $using:baseDrivePath) ) } 
                 if (-not $RemotePathDetailExists) {
-                    Throw "$($spacer*1) $baseDrivePath is invalid"
+                    Throw "$($spacer*2) $baseDrivePath is invalid"
                 }
             }
 
@@ -207,7 +207,7 @@ function Get-AlbumDtlForArtistList {
 
                     $artistFilterPhrase = '*' + $($ArtistNameFragment.ToLower()) + '*'
                     Write-Verbose ''
-                    Write-Verbose "$($spacer*1) Looking for albums from $artistFilterPhrase "
+                    Write-Verbose "$($spacer*2) Looking for albums from $artistFilterPhrase "
 
                     $baseDriveTargetPath = $baseDrivePath
 
@@ -215,7 +215,7 @@ function Get-AlbumDtlForArtistList {
                         
                         if (-not (Test-Path $baseDriveTargetPath)) {
                             <# Action to perform if the condition is true #>
-                            Throw "$($spacer*1) $baseDriveTargetPath is invalid"
+                            Throw "$($spacer*2) $baseDriveTargetPath is invalid"
                             
                         } 
                     }
@@ -224,7 +224,7 @@ function Get-AlbumDtlForArtistList {
                         $RemotePathDetailExists = Invoke-Command -Session $remoteSessionObj `
                                     -ScriptBlock {  ($true -eq (Test-Path $using:baseDriveTargetPath) ) } 
                         if (-not $RemotePathDetailExists) {
-                            Throw "$($spacer*1) $baseDriveTargetPath is invalid"
+                            Throw "$($spacer*2) $baseDriveTargetPath is invalid"
                         }
                     }
 
@@ -253,17 +253,14 @@ function Get-AlbumDtlForArtistList {
                         $artistTag = 'Artist'
                     }
 
-                    Write-Verbose "$($spacer*3) Found $($folders.Count) $artistTag in $baseDriveTargetPath "
-                    Write-Verbose "$($spacer*3) that match $artistFilterPhrase"
-                    Write-Verbose "$($spacer*3) ------"
+                    Write-Verbose "$($spacer*2) Found $($folders.Count) $artistTag in $baseDriveTargetPath "
+                    Write-Verbose "$($spacer*2) that match $artistFilterPhrase"
+                    Write-Verbose "$($spacer*2) ------"
 
                     if ($folders.Count -gt 0) {
                             
+                        Write-Verbose "$($spacer*2)$($spaceTwo) Loop over the artist folders found." 
                         foreach ($artistFolder in $folders) {
-
-                            if ($PSBoundParameters.ContainsKey('UseRemote')) {
-                                $artistFolder
-                            }
 
                             $SearchFolderLocation = [ItemLocation]::New()
 
@@ -278,10 +275,10 @@ function Get-AlbumDtlForArtistList {
                                 $SearchFolderLocation.ComputerName = $artistFolder.PSComputerName
                             }
                             
-                            Write-Verbose "$($spacer*3) Looking for albums to transfer in $($artistFolder.FullName) "
+                            Write-Verbose "$($spacer*2)$($spaceTwo) Looking for albums to transfer in $($artistFolder.FullName) "
                             switch ($PSCmdlet.ParameterSetName) {
                                 'LocalDateFilter' {
-                                    Write-Verbose "$($spacer*3)$($spaceTwo) You used the LocalDateFilter parameter set."
+                                    Write-Debug "$($spacer*2)$($spaceTwo) You used the LocalDateFilter parameter set."
                                     if ($PSBoundParameters.ContainsKey('FirstDateToCheckSeed')) {
                                         $localAlbums = $SearchFolderLocation | Get-LocalAblumDtlFromArtistPath -FirstDateToCheckSeed $FirstDateToCheckSeed `
                                                                                     -Verbose:$ShowVerbose -Debug:$ShowDebug
@@ -294,16 +291,16 @@ function Get-AlbumDtlForArtistList {
                                     break
                                 }
                                 'LocalNoDateFilter' {
-                                    Write-Verbose "$($spacer*3)$($spaceTwo) You used the LocalNoDateFilter parameter set."
+                                    Write-Debug "$($spacer*2)$($spaceTwo) You used the LocalNoDateFilter parameter set."
                                     $localAlbums = $SearchFolderLocation | Get-LocalAblumDtlFromArtistPath -Verbose:$ShowVerbose
                                     break
                                 }
                                 'RemoteDateFilter' {
-                                    Write-Verbose "$($spacer*3)$($spaceTwo) You used the RemoteDateFilter parameter set."
+                                    Write-Debug "$($spacer*2)$($spaceTwo) You used the RemoteDateFilter parameter set."
                                     break
                                 }
                                 'RemoteNoDateFilter' {
-                                    Write-Verbose "$($spacer*3)$($spaceTwo) You used the RemoteNoDateFilter parameter set."
+                                    Write-Debug "$($spacer*2)$($spaceTwo) You used the RemoteNoDateFilter parameter set."
                                     $localAlbums = $SearchFolderLocation | Get-RemoteAblumDtlFromArtistPath -remoteSessionObj $remoteSessionObj -Verbose:$ShowVerbose
                                     
                                     
@@ -319,48 +316,21 @@ function Get-AlbumDtlForArtistList {
                                 $AlbumTag = 'album'
                             }
 
-                            Write-Verbose "$($spacer*4) Found <$($localAlbums.Count)> $AlbumTag to transfer for $($artistFolder.Name) in $ArtistAlbumPath "
+                            Write-Verbose "$($spacer*2)$($spaceTwo) Found <$($localAlbums.Count)> $AlbumTag to transfer for $($artistFolder.Name) in $baseDriveTargetPath "
 
                             foreach ($localAlbum in $localAlbums) {
-                                <# $currentItemName is the current item #>
-                                    
-                                
-                                Write-Verbose "$($spacer*5) Found <$($localAlbum.Name)> with <$($AlbumTracks.Count)> $TrackTag to transfer for $($artistFolder.Name)"
 
-                                $localAlbum
-
-                                #debug
-                                Continue 
-
-
-                                $AlbumTrackPath = (Join-Path $ArtistAlbumPath $($localAlbum.Name))
-                                if (-not (Test-Path $AlbumTrackPath)) {
-                                    <# Action to perform if the condition is true #>
-                                    Throw "$($spacer*4) $AlbumTrackPath is invalid"
-                                        
-                                } 
-
-                                $AlbumTracks = Get-ChildItem -Path $AlbumTrackPath `
-                                    -File -ErrorAction SilentlyContinue
-
-                                $TrackTag = 'tracks'
-                                if ($($AlbumTracks.Count) -eq 1) {
-                                    <# Action to perform if the condition is true #>
+                                if ($($localAlbum.TracksFound) -eq 0 -or $($localAlbum.TracksFound) -gt 1) {
+                                    $TrackTag = ConvertTo-Plural -Word 'track'
+                                }
+                                else {
                                     $TrackTag = 'track'
                                 }
+                                Write-Verbose "$($spacer*2)$($spaceTwo) Found <$($localAlbum.AlbumName)> with <$($localAlbum.TracksFound)> $TrackTag to transfer for $($localAlbum.ArtistName) on $($localAlbum.Location.ComputerName)."
 
-                                
+                                <# Return the local or remote albu#>
+                                Write-Output  $localAlbum
 
-                                $LocalAlbumObject = [PSCustomObject]@{
-                                    AlbumName     = $localAlbum.Name
-                                    LastWriteTime = $localAlbum.LastWriteTime
-                                    ArtistName    = $artistFolder.Name
-                                    TrackCount    = $($AlbumTracks.Count)
-                                    Path          = $ArtistAlbumPath
-                                    MusicSource   = $MusicFileSourse
-                                }
-                                            
-                                Write-Output $LocalAlbumObject
                             }
                                 
                         }
