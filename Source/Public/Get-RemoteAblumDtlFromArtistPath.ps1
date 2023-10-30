@@ -90,7 +90,7 @@ function Get-RemoteAblumDtlFromArtistPath {
                 Throw "$($FirstDateToCheckSeed.ToString('MM/dd/yyyy HH:MM')) is invalid. Valid Filter dates must be within the last $DaysBackToCheck days."
                 
             }
-            Write-Verbose "$($spacer*2) $($FirstDateToCheck.ToString('MM/dd/yyyy HH:MM')) to $($LastDateToCheck.ToString('MM/dd/yyyy HH:MM'))"
+            Write-Verbose "$($spacer*3) $($FirstDateToCheck.ToString('MM/dd/yyyy HH:MM')) to $($LastDateToCheck.ToString('MM/dd/yyyy HH:MM'))"
 
         }
         #endregion
@@ -130,10 +130,68 @@ function Get-RemoteAblumDtlFromArtistPath {
                                     }
                                 } 
             
-            Write-Verbose "$($spacer*2) Looking for albums in $WorkingFolder - $MusicSourceFolder "
+            Write-Verbose "$($spacer*3) Looking for albums in $WorkingFolder - $MusicSourceFolder "
             $AlbumEncodingObj = $MusicSourceFolder | Get-MetaDataFromSourceFolder -Verbose:$ShowVerbose
             
-            
+            <# Get the set of Albums in the arist folder #>
+
+            switch ($PSCmdlet.ParameterSetName) {
+                'RemoteDateFilter' {
+                    Write-Debug "$($spacer*3)$($spaceTwo) You used the RemoteDateFilter parameter set."
+                    
+                    $localAlbums =  Invoke-Command -Session $remoteSessionObj `
+                    -ScriptBlock { Param ($AlbumPath, $FirstDate, $LastDate) Get-ChildItem -Path $AlbumPath `
+                                            -Directory -ErrorAction SilentlyContinue | `
+                                    Where-Object { $_.LastWriteTime -ge $FirstDate -and $_.LastWriteTime -lt $LastDate} 
+                                } -ArgumentList $WorkingFolder, $FirstDateToCheck, $LastDateToCheck
+                    break
+                }
+                'RemoteNoDateFilter' {
+                    Write-Debug "$($spacer*3)$($spaceTwo) You used the RemoteNoDateFilter parameter set."
+                    $localAlbums = Invoke-Command -Session $remoteSessionObj `
+                                        -ScriptBlock { Param ($AlbumPath) Get-ChildItem -Path $AlbumPath `
+                                            -Directory -ErrorAction SilentlyContinue
+                                        } -ArgumentList $WorkingFolder
+
+                    break
+                }
+            }
+            if ($($localAlbums.Count) -eq 0 -or $($localAlbums.Count) -gt 1) {
+                $AlbumTag = ConvertTo-Plural -Word 'album'
+            }
+            else {
+                $AlbumTag = 'album'
+            }
+
+            # Write-Verbose "$($spacer*3) Found $($localAlbums) $AlbumTag to report."
+
+
+            $localAlbums | ForEach-Object {
+
+                $AlbumLocation = [ItemLocation]::New()
+
+                $AlbumLocation.PathString = $($_.FullName)
+                $AlbumLocation.Drive = $LocationList.Drive
+                $AlbumLocation.ComputerName = $_.PSComputerName
+
+                $AlbumDetails = Invoke-Command -Session $remoteSessionObj `
+                                    -ScriptBlock { Param ($AlbumPath) Get-ChildItem -Path $AlbumPath `
+                                        -ErrorAction SilentlyContinue | Measure-Object Length -Sum
+                                        } -ArgumentList $($_.FullName)
+
+                $AlbumObj = [PSCustomObject]@{
+                    ArtistName = $_.Parent
+                    AlbumName = $_.Name
+                    Genre = $null
+                    Location = [ItemLocation]$AlbumLocation  # [ItemLocation]
+                    Encoding = [MusicEncodings]$($AlbumEncodingObj.FolderEncoding)   # [MusicEncodings] 'flac'
+                    PurchaseSource = [MusicSources]$($AlbumEncodingObj.FolderSource) # [MusicSources] 'cd'
+                    AlbumSizeBytes = $AlbumDetails.Sum      # [int64]
+                    TracksFound = $AlbumDetails.Count 
+                }
+
+                Write-Output $AlbumObj
+            }
         }
         catch {
             Write-Host ' Hit some error!'
