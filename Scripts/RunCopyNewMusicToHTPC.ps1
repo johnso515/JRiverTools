@@ -9,7 +9,21 @@ using module 'C:\Users\johns\Projects\JRiverTools\Release\0.2.0\JRiverTools.psm1
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
+# Debug
+. 'C:\Users\johns\Projects\JRiverTools\Source\Classes\ItemLocation.ps1'
+<# Note that this enum should be moved out into the tools project #>
+. 'C:\Users\johns\Projects\JRiverTools\Source\Enums\CopyLocationType.ps1'
 
+. 'C:\Users\johns\Projects\JRiverTools\Source\Classes\AlbumCopyRequest.ps1'
+
+
+. 'C:\Users\johns\Projects\JRiverTools\Source\Public\Get-AlbumDtlForArtistList.ps1'
+. 'C:\Users\johns\Projects\JRiverTools\Source\Public\Get-LocationDtlForPassthrough.ps1'
+
+. 'C:\Users\johns\Projects\JRiverTools\Source\Public\Get-LocalAblumDtlFromArtistPath.ps1'
+. 'C:\Users\johns\Projects\JRiverTools\Source\Private\Get-MetaDataFromSourceFolder.ps1'
+. 'C:\Users\johns\Projects\JRiverTools\Source\Private\Get-MusicPathsFromHTPCForMusicSource.ps1'
+. 'C:\Users\johns\Projects\JRiverTools\Source\Public\Get-RemoteAblumDtlFromArtistPath.ps1'
 
 Import-Module ListUtils -Force
 Import-Module DateUtils -Force
@@ -18,7 +32,7 @@ Import-Module FormatUtils -Force
 Import-Module RawFileUtils -Force
 Import-Module FileHeaderUtils -Force
 Import-Module VistaAlAguaSecurityDetails -Force
-
+Import-Module PowerShellHumanizer
 
 <# Display and debug vars #>
 [string]$private:spaceTwo = $(' '*2)
@@ -26,10 +40,12 @@ Import-Module VistaAlAguaSecurityDetails -Force
 
 $VerbosePreference = 'SilentlyContinue'  # $oldVerbose
 
-[string]$local:spaceTwo = $(' '*2)
-[string]$local:spacer = $(' '*4)
+[bool]$private:ShowVerbose = $false
+[bool]$private:ShowDebug = $false
+[bool]$private:ShowWhatIf = $false
 
 
+$private:RawLocationObj = $null
 
 [hashtable]$driveDetails = @{}
 
@@ -66,9 +82,39 @@ $driveLetterToNumberMap = @{"I" = 1;
 }
 
 $private:remoteArtistAlbumObjs = [System.Collections.Generic.list[object]]::New()
+$private:LocationsToSearch = [System.Collections.Generic.list[object]]::New()
+
+$private:LocalAlbumCandidates = [System.Collections.Generic.list[object]]::New()
 
 [System.Collections.ArrayList]$local:ArtistsToCheck = @()
 [System.Collections.ArrayList]$local:SourcesToCheck = @()
+
+$private:RemoteArtistDriveLocations = [System.Collections.Generic.list[object]]::New()
+
+$private:RemoteAlbumCandidates = [System.Collections.Generic.list[object]]::New()
+$private:RemoteWorkingAlbums = [System.Collections.Generic.list[object]]::New()
+
+[System.Collections.ArrayList]$local:MusicSourcePathsToCheck = @()
+
+
+<# Working Variables for the Passthrough folder #>
+#region InitLocalAlbumVariables
+[ItemLocation]$private:PassThroughLocation = $null
+
+#endregion
+
+<# Working variables for Remote album fetch #>
+#region InitRemoteAlbumVariables
+[ItemLocation]$private:RemoteMusicLocation = $null
+$private:RemotePathObj = $null
+
+[string]$private:RemotePathString = $null
+
+#endregion
+
+$ShowVerbose = $false
+$ShowDebug = $True
+$ShowWhatIf = $false
 
 $SearchPhrase = "Cody"
 <#
@@ -83,6 +129,8 @@ $musicTargetPaths = @("Amazon MP3"
                     )
 #>
 $MusicFileSourse = ''
+
+$RemoteArtistList = $null
 
 if (-not $musicTargetPaths.Contains($MusicFileSourse)) {
     <# Default to flac (ripped cd) #>
@@ -128,6 +176,251 @@ try {
         TBD - Derive albums to copy based on type and date
     #>
 
+    <#
+        [string]$Drive
+        [System.IO.FileSystemInfo]$Path
+
+        [string] $NASUNCPath = '\\syn414jnas\Backup',
+
+        [Parameter(Mandatory=$false, 
+                     ValueFromPipeline=$true
+                    )]
+        [string] $TransferRoot = 'Passthrough',
+
+        [Parameter(Mandatory=$false, 
+                     ValueFromPipeline=$true
+                    )]
+        [string] $AlbumRoot = 'Music',
+
+        [string]$private:DefaultQuickReferencePath = Resolve-Path "$env:USERPROFILE\*\Quick References" | Select-Object -ExpandProperty Path
+
+
+    #>
+
+    # Get-PSDrive -PSProvider FileSystem 
+    # Get-CimInstance -Class Win32_LogicalDisk | Where-Object { $_.ProviderName -eq '\\syn414jnas\Backup'}
+    # [System.IO.DriveInfo]::GetDrives()
+
+    $PassThroughLocation = [ItemLocation]::New()
+    $RawLocationObj = Get-LocationDtlForPassthrough -WhatIf:$ShowWhatIf -Verbose:$showVerbose -Debug:$showDebug
+
+    if ($null -ne $RawLocationObj) {
+        $PassThroughLocation.Drive = $RawLocationObj.Drive
+        $PassThroughLocation.Path = $RawLocationObj.Path
+    }
+
+    <#
+    [ItemLocation[]] $LocationList,
+    #>
+    # -FirstDateToCheckSeed $FilterStartDate
+    $LocalAlbumCandidates = Get-AlbumDtlForArtistList -ArtistNameList "Cody", "Ashley" -LocationList $PassThroughLocation `
+                                -UseLocal -UseDateFilter -DaysBackToCheck 15 `
+                                -WhatIf:$ShowWhatIf -Verbose:$showVerbose -Debug:$showDebug
+
+
+    #region FindRemoteAlbums
+    $RemoteAlbumCandidates.Clear()
+    <# Get the unique music folders to check on the remote host #>
+    $LocalAlbumCandidates | sort-object -Property ArtistName -Unique | ForEach-Object {
+        
+        $RemoteArtistList = ''
+        $LocalArtistName = $_.ArtistName
+        
+        <# Check the Mapping list for the artist name(s) #>
+        if ($alternameArtistMapping.ContainsKey($LocalArtistName)) {
+            $AltArtistCount = 0
+            foreach ($AltArtist in $($alternameArtistMapping[$LocalArtistName]) ) {
+
+                $AltArtistCount++
+                $RemoteArtistList += $AltArtist
+
+                if ($AltArtistCount -lt $($alternameArtistMapping[$LocalArtistName]).Count) {
+                    $RemoteArtistList += ','
+                }
+            }
+            
+        }
+        else {
+            $RemoteArtistList = $LocalArtistName
+        }
+
+        $MusicSourcePathsToCheck.Clear()
+
+        $LocalAlbumCandidates | Where-Object {$_.ArtistName -eq $LocalArtistName } | ForEach-Object {
+            <#
+                $musicTargetPaths = @("Amazon MP3"
+                        , "Bandcamp"
+                        , "Flac"
+                        , "HDTracks"
+                        , "Playlists"
+                        , "Wma"
+                        , "MP3"
+                    )
+            #>
+            if ($_.Encoding -eq 'flac' -and $_.PurchaseSource -eq 'cd') {
+                $MusicFolder = 'Flac'
+            }
+            elseif ($_.PurchaseSource -eq 'bandcamp') {
+                $MusicFolder = 'Bandcamp'
+            }
+            elseif ($_.PurchaseSource -eq 'hdtracks') {
+                $MusicFolder = 'HDTracks'
+            }
+            else {
+                $MusicFolder = 'Flac'
+            }
+            if (-not $MusicSourcePathsToCheck.Contains($MusicFolder)) {
+                [void]$MusicSourcePathsToCheck.Add($MusicFolder)
+            }
+            
+        }
+
+        $RemoteSourceString = ''
+        $LocationCount = 0
+        foreach ($MusicFolder in $MusicSourcePathsToCheck) {
+            $LocationCount++
+            $RemoteSourceString += $MusicFolder
+            if ($LocationCount -lt $MusicSourcePathsToCheck.Count) {
+                $RemoteSourceString += ','
+            }
+        }
+        if ($($MusicSourcePathsToCheck.Count) -eq 0 -or $($MusicSourcePathsToCheck.Count) -gt 1) {
+            $FolderTag = ConvertTo-Plural -Word 'path'
+        }
+        else {
+            $FolderTag = 'path'
+        }
+
+        Write-Host "$($spacer*1) Found $($MusicSourcePathsToCheck.Count) unique $FolderTag for $LocalArtistName - <$RemoteSourceString>."
+
+        $RemoteArtistDriveLocations = Get-MusicPathsFromHTPCForMusicSource -MusicFileSourses $RemoteSourceString -remoteSessionObj $remoteSessionObj `
+                                        -WhatIf:$ShowWhatIf -Verbose:$showVerbose -Debug:$showDebug
+
+        $LocationCount = 0
+        foreach ($RemoteDriveLocation in $RemoteArtistDriveLocations) {
+            $LocationCount++
+
+            if ($LocationCount -eq 0 -or $LocationCount -gt 1) {
+                $PathTag = ConvertTo-Plural -Word 'path'
+            }
+            else {
+                $PathTag = 'path'
+            }
+
+            <#
+                Drive          : L:\
+                Path           : L:\Media2\Music\Flac
+                MusicSource    : Flac
+                FreeSpaceBytes : 3483645263872
+                UsedSpaceBytes : 4517916553216
+                ComputerName   : HTPC
+            #>
+            $RemoteMusicLocation = [ItemLocation]::New()
+            if ($null -ne $RemoteDriveLocation) {
+
+                $RemoteMusicLocation.Drive = $RemoteDriveLocation.Drive
+                $RemoteMusicLocation.ComputerName = $RemoteDriveLocation.ComputerName
+
+                <# These do not work.  Will have to resolve deeping in .#>
+                # [System.IO.DirectoryInfo]$RemotePathObj = Invoke-Command -Session  $remoteSessionObj -ScriptBlock { Get-Item $using:RemotePathString }
+
+                <#
+                $RemotePathObj = Invoke-Command -Session $remoteSessionObj `
+                                            -ScriptBlock { Param ($localSearchPhrase, $pathArray) Get-ChildItem -Path $pathArray `
+                                                -Directory  -Filter $localSearchPhrase `
+                                                -ErrorAction SilentlyContinue  } -ArgumentList $($RemoteDriveLocation.MusicSource), $RemotePathString
+                #>
+
+                $RemoteMusicLocation.PathString = $($RemoteDriveLocation.Path)
+
+                if ($null -eq $RemoteWorkingAlbums) {
+                    # Write-Host "$($spacer*2) Pre-Step: Check RemoteWorkingAlbums is null"
+                }
+                else {
+                    $RemoteWorkingAlbums = $null
+                }
+                
+                $RemoteWorkingAlbums = Get-AlbumDtlForArtistList -ArtistNameList $RemoteArtistList -LocationList $RemoteMusicLocation `
+                                            -UseRemote -remoteSessionObj $remoteSessionObj `
+                                            -WhatIf:$ShowWhatIf -Verbose:$showVerbose -Debug:$showDebug
+
+            
+                if ($RemoteWorkingAlbums.Count -gt 0) {
+                    <# Add the found items to the list #>
+
+                    foreach ($RemoteAlbum in $RemoteWorkingAlbums) {
+                        [void]$RemoteAlbumCandidates.Add($RemoteAlbum)
+                    }
+                }
+
+                Write-Host "$($spacer*1)$($spaceTwo) Done --> ($RemoteArtistList) <$($RemoteDriveLocation.Path)>"
+            }
+
+            Write-Host ""
+            Write-Host "$($spacer*1) Completed checking $($LocationCount.ToString()) $PathTag of $($($RemoteArtistDriveLocations.Count).ToString())."
+            Write-Host ""
+        }
+    }
+    # 
+    Write-Host "$($spacer*2) $('-'*25)"
+    #endregion
+
+    $LocalAlbumCandidates | Select-Object -Property ArtistName, AlbumName, @{
+        Name='Path';
+        Expression={
+                        Write-Output $_.Location.GetPathString();
+                    }
+                }, TracksFound
+
+    $RemoteAlbumCandidates | Select-Object -Property ArtistName, AlbumName, @{
+        Name='Path';
+        Expression={
+                        Write-Output $_.Location.GetPathString();
+                    }
+                }, TracksFound
+    <#
+        ArtistName     : Cody Jinks
+        AlbumName      : Red Rocks Live
+        Genre          : 
+        Location       : ItemLocation
+        Encoding       : flac
+        PurchaseSource : cd
+        AlbumSizeBytes : 710067800
+        TracksFound    : 24
+
+        TrackCopyRequest : ItemCopyRequest 
+        --------------------
+        # ItemCopyRequest
+        [datetime] $RequestCreated
+        [System.IO.FileSystemInfo] $TargetPath
+        [System.IO.FileSystemInfo] $SourcePath
+        [string] $ItemName
+
+        [AlbumTrack] $Track
+        [bool] $Overwrite
+
+        AlbumTrack
+        --------------------
+        [string] $TrackName
+        [int] $TrackNumber
+        [string] $ArtistName
+        [int] $Rating
+        [ItemLocation] $Location
+
+    #>
+
+    <# Compare the local albums to the remote albums #>
+    $LocalItemsMatched = 0
+
+    # AlbumCopyRequest
+    # TrackCopyRequest
+
+    
+
+    # Debug
+    break
+
+
     Write-Host "$($spacer*2) Get the albums to copy..."
     $localFolder = GetLocalAlbumToCopyToHTPC -ArtistNamesToCopy "Cody", "Ashley" -MusicFileSourse "Flac", "Bandcamp" `
                         -FirstDateToCheckSeed $FilterStartDate -DaysBackToCheck 60
@@ -139,7 +432,7 @@ try {
     $localFolder | ForEach-Object {
 
         $_
-        
+
         if (-not $ArtistsToCheck.Contains($($_.ArtistName))) {
             <# Action to perform if the condition is true #>
             $artistList += $( '"' + $_.ArtistName + '"' )
@@ -237,10 +530,14 @@ try {
 catch {
 
     Write-Host " Hit some error!"
-    $ScriptName = $PSItem.InvocationInfo.ScriptName
-    $Line  = $PSItem.InvocationInfo.Line 
-    $ScriptLineNumber = $PSItem.InvocationInfo.ScriptLineNumber
-    Write-Host "Error...Name: $ScriptName Line: $Line Script Line Nbr: $ScriptLineNumber"
+            $ScriptName = $PSItem.InvocationInfo.ScriptName
+            $Line  = $PSItem.InvocationInfo.Line 
+            $ScriptLineNumber = $PSItem.InvocationInfo.ScriptLineNumber
+            Write-Host "Error...Name: $ScriptName Line: $Line Script Line Nbr: $ScriptLineNumber"
+            $err = $_.Exception
+            $err | Select-Object -Property *
+            "Response: $err.Response"
+            $err.Response
 }
 
 Remove-PSSession -Session $remoteSessionObj
