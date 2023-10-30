@@ -45,6 +45,10 @@ function Get-MetaDataFromSourceFolder {
 
         $private:EncodingDtl = $null
 
+        <# Debug and display variables #>
+        $private:spacer = $(' ' * 4)
+        $private:spaceTwo = $(' ' * 2)
+        
     }
     
     process {
