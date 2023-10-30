@@ -6,6 +6,8 @@ class AlbumCopyRequest : ItemCopyRequest {
         [System.IO.FileSystemInfo] $SourcePath
         [string] $ItemName
     #>
+    [CopyLocationType] $SourceLocType
+    [CopyLocationType] $TargetLocType
     [MusicAlbum] $Album
     [bool] $Overwrite
 }
