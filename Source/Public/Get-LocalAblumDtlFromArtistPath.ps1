@@ -84,7 +84,7 @@ function Get-LocalAblumDtlFromArtistPath {
                 Throw "$($FirstDateToCheckSeed.ToString('MM/dd/yyyy HH:MM')) is invalid. Valid Filter dates must be within the last $DaysBackToCheck days."
                 
             }
-            Write-Verbose "$($spacer*2) $($FirstDateToCheck.ToString('MM/dd/yyyy HH:MM')) to $($LastDateToCheck.ToString('MM/dd/yyyy HH:MM'))"
+            Write-Verbose "$($spacer*3) $($FirstDateToCheck.ToString('MM/dd/yyyy HH:MM')) to $($LastDateToCheck.ToString('MM/dd/yyyy HH:MM'))"
 
         }
         #endregion
@@ -114,11 +114,11 @@ function Get-LocalAblumDtlFromArtistPath {
             $MusicSourceFolder = $($($($LocationList.Path).Parent).Name)
             $AlbumEncodingObj = $MusicSourceFolder | Get-MetaDataFromSourceFolder -Verbose:$ShowVerbose
             
-            Write-Verbose "$($spacer*2) Looking for albums in $($LocationList.Path) - $MusicSourceFolder "
+            Write-Verbose "$($spacer*3) Looking for albums in $($LocationList.Path) - $MusicSourceFolder "
 
             switch ($PSCmdlet.ParameterSetName) {
                 'LocalDateFilter' {
-                    Write-Verbose "$($spacer*2)$($spaceTwo) You used the LocalDateFilter parameter set."
+                    Write-Debug "$($spacer*3)$($spaceTwo) You used the LocalDateFilter parameter set."
                     
                     
                     $localAlbums = Get-ChildItem -Path $($LocationList.Path) `
@@ -127,7 +127,7 @@ function Get-LocalAblumDtlFromArtistPath {
                     break
                 }
                 'LocalNoDateFilter' {
-                    Write-Verbose "$($spacer*2)$($spaceTwo) You used the LocalNoDateFilter parameter set."
+                    Write-Debug "$($spacer*3)$($spaceTwo) You used the LocalNoDateFilter parameter set."
                     $localAlbums = Get-ChildItem -Path $($LocationList.Path) `
                                 -Directory -ErrorAction SilentlyContinue
                     break
@@ -140,7 +140,7 @@ function Get-LocalAblumDtlFromArtistPath {
                 $AlbumTag = 'album'
             }
 
-            Write-Verbose "$($spacer*2) Found $($localAlbums) $AlbumTag to report."
+            # Write-Verbose "$($spacer*3) Found $($localAlbums) $AlbumTag to report."
             <# Build the output objects #>
             $localAlbums | ForEach-Object {
 
