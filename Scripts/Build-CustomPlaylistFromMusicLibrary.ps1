@@ -657,8 +657,6 @@ try {
 
             $SkipRow = $false
 
-            # $Item = $CurrentTrack.FullName
-            # $tmp = $CurrentTrack
             <# 
                 This has been pre-verified:
 
@@ -691,63 +689,22 @@ try {
             # $SourceHashVal = Get-HashFromStringStream -stringToHash $TitleTrack -hashAlgo MD5
             $SourceHashVal = $TrackHash['HashVal']
 
-
-            $pathname = $tmp.DirectoryName 
-            $filename = $tmp.Name 
-    
             <# Get the Hash value of the Path/Song #>
             # $SourceHashResults = Get-FileHash -LiteralPath $Item -Algorithm MD5                 
             # $SourceHashVal = $SourceHashResults.'Hash'
-            $SourceHashVal = Get-HashFromStringStream -stringToHash $Item -hashAlgo MD5
 
-            <# Build out the attributes for the track #>
-            $hash = @{}
 
-            $folderobj = $shellobj.namespace($pathname) 
-            $fileobj = $folderobj.parsename($filename) 
-        
-            :AttributeLoop for ($i = 0; $i -le 294; $i++) { 
-                $name = $folderobj.getDetailsOf($null, $i)
-                if ($name) {
-
-                    if (-not $MusicInputCols.Contains($name)) {
-                        continue AttributeLoop
-                    }
-
-                    $value = $folderobj.getDetailsOf($fileobj, $i)
-                    if ($value) {
-                        $hash[$($name)] = $($value)
-                    }
-                }
-            } 
-            # Add the hash
-            $hash['HashVal'] = $SourceHashVal
 
             <# Basic validation of the Song #>
 
-            <# Calculate the time factors #>
-            $TrackLenString = $hash['Length']    
-            # 00:02:38
-            # Size - estimate based on size;
-            if ($TrackLenString.Length -gt 0) {
-                ([Int16]$Hours, [Int16]$Minutes, [Int16]$Seconds) = $TrackLenString.Split(':')
-            }
-            else {
-                <# Default to 3 minutes #>
-                ([Int16]$Hours, [Int16]$Minutes, [Int16]$Seconds) = (0, 3, 0)
-            }
-        
-                
-            <# Calculate the progress towards a target list #>
-            $SecondsFraction = $Seconds / 60
-            $TotalMinutes = ($Hours * 60) + $Minutes + $SecondsFraction
+            $TotalMinutes = $TrackHash['TotalMinutes']
 
             <#
                 $MaxSongLengthMinutes = 8
                 $LongSongsToInclude = @()
             #>
             if ($TotalMinutes -gt $MaxSongLengthMinutes `
-                    -and ($LongSongsToInclude.Count -eq 0 -or -not $LongSongsToInclude.Contains($($hash['Title'])) ) ) {
+                    -and ($LongSongsToInclude.Count -eq 0 -or -not $LongSongsToInclude.Contains($($TrackHash['Title'])) ) ) {
                 $SkipRow = $true
             }
             elseif ($TotalMinutes -eq 0 ) {
@@ -765,19 +722,14 @@ try {
             
 
             <# Check the Core Attributes #>
-            if ($($hash['Genre']).Length -eq 0 `
-                    -or $($hash['Album artist']).Length -eq 0 `
-                    -or $($hash['Album']).Length -eq 0 `
-                    -or $($hash['Title']).Length -eq 0) {
+            if ($($TrackHash['Genre']).Length -eq 0 `
+                    -or $($TrackHash['Album artist']).Length -eq 0 `
+                    -or $($TrackHash['Album']).Length -eq 0 `
+                    -or $($TrackHash['Title']).Length -eq 0) {
                 $SkipRow = $true
             }
 
-            <# Patch Genre if needed #>
-            $RawGenre = $($hash['Genre'])
-            if ($RawGenre.Length -gt 0) {
-                ($RawGenre, $remainder) = $RawGenre.Split(';')
-                $hash['Genre'] = $RawGenre
-            }
+            $RawGenre = $TrackHash['Genre']
             
             <# Check the cleaned Genre against the list #>
             if ($RawGenre.Length -gt 0 -and $GenresToSkip.Count -gt 0 -and $GenresToSkip.Contains($($RawGenre.ToLower))) {
@@ -795,6 +747,7 @@ try {
             <# Song is valid #>
             if (-not $SkipRow) {
 
+                <# Calculate the progress towards a target list #>
                 $TotalListMinutes += $TotalMinutes
                 $RowsProcessed++
 
@@ -808,9 +761,9 @@ try {
                 }
                 <# Genre #>
                 #region SetGenreHash
-                if ($($hash['Genre']).Length -gt 0) {
+                if ($($TrackHash['Genre']).Length -gt 0) {
 
-                    $Genre = $hash['Genre']
+                    $Genre = $TrackHash['Genre']
 
                     if ($GenreToHash.ContainsKey($Genre)) {
                         $GenreHashKey = $GenreToHash[$Genre]
@@ -829,9 +782,9 @@ try {
 
                 <# Artist #>
                 #region SetArtistHash
-                if ($($hash['Album artist']).Length -gt 0) {
+                if ($($TrackHash['Album artist']).Length -gt 0) {
                 
-                    $Artist = $hash['Album artist']
+                    $Artist = $TrackHash['Album artist']
                     if ($ArtistToHash.ContainsKey($Artist)) {
                         $ArtistHash = $ArtistToHash[$Artist]
                     }
@@ -851,9 +804,9 @@ try {
 
                 <# Album #>
                 #region SetAlbumHash
-                if ($($hash['Album']).Length -gt 0) {
+                if ($($TrackHash['Album']).Length -gt 0) {
                         
-                    $Album = $hash['Album']
+                    $Album = $TrackHash['Album']
 
                     if ($AlbumToHash.ContainsKey($Album)) {
                         $AlbumHash = $AlbumToHash[$Album]
@@ -872,8 +825,8 @@ try {
 
                 <# TitleTrack #>
                 #region SetTitelTrackHash
-                if ($($hash['Title']).Length -gt 0) {
-                    $TitleTrack = $hash['Title']
+                if ($($TrackHash['Title']).Length -gt 0) {
+                    $TitleTrack = $TrackHash['Title']
 
                     if ($TitleTrackToHash.ContainsKey($TitleTrack)) {
                         $TitleTrackHash = $TitleTrackToHash[$TitleTrack]
@@ -901,13 +854,13 @@ try {
 
                 <# Add the track details#>
                 foreach ($MusicAttribute in $MusicOutputCols) {
-                    $MusicHash[$SourceHashVal]['TrackDetail'][$MusicAttribute] = $hash[$MusicAttribute]
+                    $MusicHash[$SourceHashVal]['TrackDetail'][$MusicAttribute] = $TrackHash[$MusicAttribute]
                 }
                 $MusicHash[$SourceHashVal]['TrackDetail']['TotalMinutes'] = $TotalMinutes
 
                 <# Parse and Save stars #>
                 # 4 Stars
-                $RawRating = $hash['Rating']
+                $RawRating = $TrackHash['Rating']
             
                 $RatingStars = $rx.match($RawRating).Value[0]
                 $MusicHash[$SourceHashVal]['TrackDetail']['RatingStars'] = $RatingStars
