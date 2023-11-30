@@ -25,22 +25,28 @@ function Set-MusicFoldersForRoot {
         SupportsShouldProcess
     )]
     param (
-        [Parameter(Mandatory = $true, ValueFromPipeline, Position=0, ValueFromPipelineByPropertyName
+        [Parameter(Mandatory = $true, ValueFromPipeline, Position = 0, ValueFromPipelineByPropertyName
             , HelpMessage = 'Specify the set of locations to search.'
-            )]
-        [ValidateSet("HTPC"
-            )]
+        )]
+        [ValidateSet('HTPC'
+        )]
         [string] $TargetServer,
 
         [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName
             , HelpMessage = 'Specify the set of locations to search.'
-            )]
+        )]
         [string] $TargetDriveLetter = 'C',
 
         [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName
             , HelpMessage = 'Specify the set of locations to search.'
-            )]
-        [string] $TargetBasePath = 'Media1'
+        )]
+        [string] $TargetBasePath = 'Media1',
+
+
+        [Parameter(Mandatory = $false, ValueFromPipelineByPropertyName
+            , HelpMessage = 'Specify the set of folders to create in the target.'
+        )]
+        [hashtable] $FoldersToCreate = @{}
 
         
     )
@@ -74,6 +80,66 @@ function Set-MusicFoldersForRoot {
                                 , "MP3"
                             )
         #>
+        <# Definition vars #>
+        <# To Do: Pull these from a config or function #>
+        [array]$private:TargetMediaPaths = @('Music', 'Podcasts', 'Video')
+
+        [hashtable]$private:TargetMediaSubPaths = @{}
+
+        [hashtable]$private:MasterMediaSubPaths = @{
+            'Music'    = @('Amazon MP3'
+                , 'Bandcamp'
+                , 'Flac'
+                , 'HDTracks'
+                , 'Playlists'
+                , 'Wma'
+                , 'MP3'
+            )
+            'Podcasts' = @()
+            'Video'    = @('4KUHD'
+                , 'BluRay'
+                , 'Dvd'
+            )
+        }
+
+        [System.Collections.ArrayList]$private:CandidateSubPathsToCheck = @()
+
+        Write-Debug ""
+        if ($null -eq $FoldersToCreate -or $FoldersToCreate.Count -eq 0) {
+            Write-Debug "$($spacer*1)$($spaceTwo*1) Initializing Sub paths from default."
+            
+            foreach ($MediaTypePath in $MasterMediaSubPaths.Keys) {
+                $CandidateSubPathsToCheck.Clear()
+                Write-Debug "$($spacer*2)$($spaceTwo*1) Initializing $MediaTypePath."
+                foreach ($currentItemName in $($MasterMediaSubPaths[$MediaTypePath])) {
+                    Write-Debug "$($spacer*2)$($spaceTwo*2) Initializing $currentItemName for $MediaTypePath."
+                    [void]$CandidateSubPathsToCheck.Add($currentItemName)
+                }
+                $TargetMediaSubPaths[$MediaTypePath] = $CandidateSubPathsToCheck
+                Write-Debug "$($spacer*2)$($spaceTwo*1) Initializing $MediaTypePath.<$($CandidateSubPathsToCheck.Count)>"
+                Write-Debug ""
+            }
+
+        }
+        else {
+            Write-Debug "$($spacer*1)$($spaceTwo*1) Initializing Sub paths from passed set."
+            
+            foreach ($MediaTypePath in $FoldersToCreate.Keys) {
+                $CandidateSubPathsToCheck.Clear()
+                Write-Debug "$($spacer*2)$($spaceTwo*1) Initializing $MediaTypePath."
+                foreach ($currentItemName in $($FoldersToCreate[$MediaTypePath])) {
+                    Write-Debug "$($spacer*2)$($spaceTwo*2) Initializing $currentItemName for $MediaTypePath."
+                    [void]$CandidateSubPathsToCheck.Add($currentItemName)
+                }
+                $TargetMediaSubPaths[$MediaTypePath] = $CandidateSubPathsToCheck
+                Write-Debug "$($spacer*2)$($spaceTwo*1) Initializing $MediaTypePath.<$($CandidateSubPathsToCheck.Count)>"
+                Write-Debug ""
+            }
+        }
+        Write-Debug ""
+
+        [System.Collections.ArrayList]$private:SubPathsToCheck = @()
+
         <# Working variables #>
         $private:mediaDrives = $null
 
@@ -81,6 +147,8 @@ function Set-MusicFoldersForRoot {
         [string]$private:spaceTwo = $(' ' * 2)
         [string]$private:spacer = $(' ' * 4)
 
+        [string]$private:PathTag = $null
+        
         #region InitializationVars
         $private:remoteUserName = $null
         $private:remotePswd = $null
@@ -88,12 +156,12 @@ function Set-MusicFoldersForRoot {
         <# To do: Move this to a function in the common tools process #>
         switch ($TargetServer) {
             'HTPC' { 
-                $remoteUserName = Get-SecretForPassedName -SecretToFetch "htpcUserName" -FetchPlainText $true
-                $remotePswd = Get-SecretForPassedName -SecretToFetch "htpcPswd" -FetchPlainText $false
-             }
+                $remoteUserName = Get-SecretForPassedName -SecretToFetch 'htpcUserName' -FetchPlainText $true
+                $remotePswd = Get-SecretForPassedName -SecretToFetch 'htpcPswd' -FetchPlainText $false
+            }
             Default {
-                $remoteUserName = Get-SecretForPassedName -SecretToFetch "htpcUserName" -FetchPlainText $true
-                $remotePswd = Get-SecretForPassedName -SecretToFetch "htpcPswd" -FetchPlainText $false
+                $remoteUserName = Get-SecretForPassedName -SecretToFetch 'htpcUserName' -FetchPlainText $true
+                $remotePswd = Get-SecretForPassedName -SecretToFetch 'htpcPswd' -FetchPlainText $false
             }
         }
         
@@ -105,20 +173,34 @@ function Set-MusicFoldersForRoot {
         <# Processing varibles #>
 
         [bool]$private:targetBasePathExists = $false
+        [string]$private:ComputerName = $null
+        
 
+        <# Path Vars for the new paths #>
+        [string]$private:TargetRootPath = $null     # e.g. Media5
+        [string]$private:TargetMediaPath = $null    # e.g. Media/Podcasts/Video
+        [string]$private:TargetMediaSubPath = $null # e.g. flac/4KUHD/etc.
 
+        [int]$private:PathCount = 0
+        <# Return value #>
+        [psobject]$private:RemotePathObject = $null 
+        [bool]$private:PathCreated = $false
+        
     }
     
     process {
         try {
             
             Write-Verbose "$($spacer) Getting the remote drive letters"
-            $mediaDrives = Invoke-Command -Session  $remoteSessionObj -ScriptBlock { Get-PSDrive -PSProvider FileSystem } 
+            $mediaDrives = Invoke-Command -Session $remoteSessionObj -ScriptBlock { Get-PSDrive -PSProvider FileSystem } 
             Write-Verbose "$($spacer) Found $($mediaDrives.Count) remote drive letters..."
             
             Write-Verbose "$($spacer*1)Building out the music tree for $TargetDriveLetter and $TargetBasePath in Music on $TargetServer"
         
             $drivesChecked = 0
+
+            $ComputerName = Invoke-Command -Session $remoteSessionObj `
+                -ScriptBlock { $env:COMPUTERNAME } 
 
             :driveLoop foreach ($driveName in $mediaDrives ) {
         
@@ -127,77 +209,144 @@ function Set-MusicFoldersForRoot {
                 # L:\Media2\Video\4KUHD
                 $DriveLetter = $($driveName.Name)
         
+                Write-Debug "$($spacer) $($drivesChecked.ToString().PadLeft(2)): Pre-check for $DriveLetter vs $TargetDriveLetter"
                 
-                if (-not $TargetDriveLetter -eq $DriveLetter) {
-                    Write-Verbose "$($spacer) Skipping $DriveLetter"
-                    continue driveLoop;
+                if ($TargetDriveLetter -ne $DriveLetter) {
+                    Write-Debug "$($spacer*2) Skipping $DriveLetter"
+                    continue driveLoop
                 }
+
                 $drivesChecked++
         
                 $rootString = $driveName.Root.ToString()
         
-                Write-Verbose ""
-                Write-Verbose "$($spacer) $($drivesChecked.ToString().PadLeft(2)): Begin Path check for $rootString"
+                Write-Verbose ''
+                Write-Verbose "$($spacer) $($drivesChecked.ToString().PadLeft(2)): Begin Path check for $DriveLetter"
                 Write-Verbose "$($spaceTwo) $('-'*$($($spacer.Length)*10))"
         
+                Write-Verbose "$($spacer*1)$($spaceTwo*1) Checking for $TargetBasePath, $rootString"
 
-                $mediaTargetBase = $TargetBasePath
-        
-                $ComputerName = Invoke-Command -Session $remoteSessionObj `
-                                    -ScriptBlock {  $env:COMPUTERNAME  } 
+                
+                $TargetRootPath = Set-RemotePath -TargetBasePath $($DriveLetter + ':') `
+                    -TargetLeafPath $TargetBasePath -session $remoteSessionObj  `
+                    -Verbose:$showVerbose -WhatIf:$ShowWhatIf
 
-                $TargetRootPath = Build-PathFromParts -PathParts @($rootString, $TargetBasePath)
-                # Write-Host "$spacer Debug: Testing $baseDriveTargetPath"
-                $targetBasePathExists = Invoke-Command -Session $remoteSessionObj `
-                                        -ScriptBlock {  ($true -eq (Test-Path $using:baseDriveTargetPath) ) } 
 
-                $baseDrivePath = Invoke-Command -Session $remoteSessionObj `
-                                -ScriptBlock {  (Join-Path $using:rootString $using:TargetRootPath)  } 
-        
-                $baseDrivePath = Invoke-Command -Session $remoteSessionObj `
-                                -ScriptBlock {  (Join-Path $using:baseDrivePath "Music")  } 
-        
-                # I:\Media1\Music\Flac
-                :baseTargetLoop foreach ($musicTargetPath in $MusicFileSourses) {
-        
-                    $targetFullPathDetailExists = $false
-    
-                    # $baseDriveTargetPath = Join-Path -Path $baseDrivePath -ChildPath $musicTargetPath
-    
-                    $baseDriveTargetPath = Invoke-Command -Session $remoteSessionObj `
-                            -ScriptBlock {  (Join-Path $using:baseDrivePath $using:musicTargetPath)  } 
-    
-                    # Write-Host "$spacer Debug: Testing $baseDriveTargetPath"
-                    $targetFullPathDetailExists = Invoke-Command -Session $remoteSessionObj `
-                            -ScriptBlock {  ($true -eq (Test-Path $using:baseDriveTargetPath) ) } 
-    
-        
-                    if (-not $targetFullPathDetailExists) { 
-                        Write-Verbose "$($spacer*2) Skipping $baseDriveTargetPath. Path does not exist on $rootString"
-                        continue baseTargetLoop; 
+                if (-not $ShowWhatIf -and $TargetRootPath.Length -eq 0) {
+                    <# We did not create the path #>
+                    Write-Verbose "$($spacer*2) Failed to Create $TargetRootPath."
+                    Throw 'Failed to create new path'
+                }
+
+                Write-Verbose "$($spacer*2) Created/found $TargetRootPath. <Root>"
+
+                if ($null -eq $TargetMediaSubPaths -or $($TargetMediaSubPaths.Count) -eq 0) {
+                    $PathCount = 0
+                }
+                else {
+                    $PathCount = $($TargetMediaSubPaths.Count)
+                }
+
+                $PathTag = ConvertTo-CorrectCase -Word 'Sub-path' -ItemCount $PathCount
+
+                Write-Verbose "$($spacer*1)$($spaceTwo*1) Checking for $($TargetMediaSubPaths.Count) $PathTag for $TargetBasePath. <$($($TargetMediaSubPaths.Keys))>"
+                
+                :MediaLoop foreach ($MediaPath in $TargetMediaSubPaths.Keys | Sort-Object) {
+                    <# $currentItemName is the current item #>
+
+
+                    $TargetMediaPath = Set-RemotePath -TargetBasePath $TargetRootPath `
+                        -TargetLeafPath $MediaPath -session $remoteSessionObj  `
+                        -DisplayOffset 2 `
+                        -Verbose:$showVerbose -WhatIf:$ShowWhatIf
+
+                    if (-not $ShowWhatIf -and $TargetMediaPath.Length -eq 0) {
+                        <# We did not create the path #>
+                        Write-Verbose "$($spacer*2)$($spaceTwo) Failed to Create $MediaPath in $TargetRootPath."
+                        Throw 'Failed to create new path'
                     }
-    
-                    Write-Verbose "$($spacer*2) Found $baseDriveTargetPath on $rootString"
+                    
+                    Write-Verbose "$($spacer*2)$($spaceTwo) Created/found $TargetMediaPath. <Level 1>"
 
-                    $HTPCMusicPathObject = [PSCustomObject]@{
-                            Drive = $rootString
-                            Path = $baseDriveTargetPath
-                            MusicSource = $musicTargetPath
-                            # Used (GB)     Free (GB)
+                    <# Build out the sub-folders for the media root #>
+                    if (-not $null -eq $SubPathsToCheck) {
+                        [void]$SubPathsToCheck.Clear()
+                    }
+                    
+                    $SubPathsToCheck = $TargetMediaSubPaths[$MediaPath]
+
+                    <# 
+                            Default path if ShowWhatIf is set 
+                            - e.g. we wont have created the parent path
+                    #>
+                    if ($ShowWhatIf -and $TargetMediaPath.Length -eq 0) {
+                        <# Suppress Verbose for this specific call #>
+                        $TargetMediaPath = Build-PathFromParts -PathParts @($TargetRootPath, $MediaPath) -Verbose:$false
+                    }
+                    if ($null -eq $SubPathsToCheck -or $SubPathsToCheck.Count -eq 0) {
+                        $PathCount = 0
+                    }
+                    else {
+                        $PathCount = $SubPathsToCheck.Count
+                    }
+
+                    $PathTag = ConvertTo-CorrectCase -Word 'sub-path' -ItemCount $PathCount
+                    Write-Verbose "$($spacer*2)$($spaceTwo) Creating $($PathCount.ToString()) $PathTag for $TargetMediaPath."
+                    Write-Verbose "$($spacer*2)$($spaceTwo) Debug: <$($TargetMediaPath.Length.ToString())>. Basis -> $MediaPath in $TargetRootPath. <$ShowWhatIf>"
+
+                    :SubPathLoop foreach ($MediaSubPath in $SubPathsToCheck) {
+                        Write-Verbose "$($spacer*3) Attempting to create $MediaSubPath in $TargetMediaPath."
+                        
+                        $TargetMediaSubPath = Set-RemotePath -TargetBasePath $TargetMediaPath `
+                            -TargetLeafPath $MediaSubPath -session $remoteSessionObj  `
+                            -DisplayOffset 3 `
+                            -Verbose:$showVerbose -WhatIf:$ShowWhatIf
+
+                        if (-not $ShowWhatIf -and $TargetMediaSubPath.Length -eq 0) {
+                            <# We did not create the path #>
+                            Write-Verbose "$($spacer*3) Failed to Create $MediaSubPath in $TargetMediaPath."
+                            Throw 'Failed to create new path'
+                        }
+                    
+                        if ($ShowWhatIf -and $TargetMediaSubPath.Length -eq 0) {
+                            <# Suppress Verbose for this specific call #>
+                            $TargetMediaSubPath = Build-PathFromParts -PathParts @($TargetMediaPath, $MediaSubPath) -Verbose:$false
+                        }
+
+                        Write-Verbose "$($spacer*3) Created/found $TargetMediaSubPath."
+
+                        $PathCreated = Test-RemotePath -TargetPathToCheck $TargetMediaSubPath `
+                                                        -DisplayOffset $(3 + 1) `
+                                                        -session $remoteSessionObj -Verbose:$ShowVerbose
+
+                        $RemotePathObject = [PSCustomObject]@{
+                            Drive          = $rootString
+                            Path           = $TargetMediaSubPath
+                            MusicSource    = $MediaSubPath
                             FreeSpaceBytes = $driveName.Free
                             UsedSpaceBytes = $driveName.Used
-                            ComputerName = $ComputerName
+                            ComputerName   = $ComputerName
+                            Created        = $PathCreated
                         }
                         
-                    Write-Output $HTPCMusicPathObject
-                    # Write-Host "$spacer Debug: Pull sub-folders for $baseDriveTargetPath  ($musicTargetPath)"
+                        Write-Output $RemotePathObject
+                    }
 
                 }
+
             }
         
         }
         catch {
-            <#Do this if a terminating exception happens#>
+            Write-Host ' Hit some error!'
+            $ScriptName = $PSItem.InvocationInfo.ScriptName
+            $Line = $PSItem.InvocationInfo.Line 
+            $ScriptLineNumber = $PSItem.InvocationInfo.ScriptLineNumber
+            Write-Host "Error...Name: $ScriptName Line: $Line Script Line Nbr: $ScriptLineNumber"
+            $err = $_.Exception
+            $err | Select-Object -Property *
+            "Response: $err.Response"
+            $err.Response
         }
         finally {
             if (-not $null -eq $remoteSessionObj) {
