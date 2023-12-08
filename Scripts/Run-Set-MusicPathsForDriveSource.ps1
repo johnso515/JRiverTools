@@ -4,11 +4,11 @@ using module 'C:\Users\johns\Projects\CommonTextTools\Release\0.1.4\CommonTextTo
 
 <# Debug #>
 . 'C:\Users\johns\Projects\JRiverTools\Source\Public\Set-MusicFoldersForRoot.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\Source\Private\Build-PathFromParts.ps1'
+. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Public\Build-PathFromParts.ps1'
 
-. 'C:\Users\johns\Projects\JRiverTools\Source\Private\Test-RemotePath.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\Source\Private\Add-RemotePath.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\Source\Public\Set-RemotePath.ps1'
+. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Private\Test-RemotePath.ps1'
+. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Private\Add-RemotePath.ps1'
+. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Public\Set-RemotePath.ps1'
 
 <# Display and debug vars #>
 [string]$private:spaceTwo = $(' '*2)
@@ -27,3 +27,8 @@ $VerbosePreference = 'SilentlyContinue'  # $oldVerbose
 Set-MusicFoldersForRoot -TargetServer HTPC -TargetDriveLetter 'J' `
                         -TargetBasePath 'Media5' `
                         -Verbose:$ShowVerbose -WhatIf:$ShowWhatIf -Debug:$ShowDebug
+
+
+<# Done #>
+[System.GC]::Collect()
+return
