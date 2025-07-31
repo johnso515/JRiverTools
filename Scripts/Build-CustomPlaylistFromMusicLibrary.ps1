@@ -226,8 +226,8 @@ $StarRatingInclusionPtcs = @{
     '1' = 5      # 1 Star - 30% Included
     '2' = 25     # 2 Star - 40%
     '3' = 60     # 3 Star - 50%
-    '4' = 70     # 4 Star - 60%
-    '5' = 90     # 5 Star - 70%
+    '4' = 80     # 4 Star - 60%
+    '5' = 95     # 5 Star - 70%
     'X' = 10     # Unknown Star rating
 }
 
@@ -282,15 +282,25 @@ $NumberOfPlayListsToBuild = 3
 $SampleRows = 100000
 
 $PlayListHours = 16
-$DaysToLookBackForNoRepeat = 2  # Can repeat every third day
+$DaysToLookBackForNoRepeat = 4  # Can repeat every third day
 $MaxSongLengthMinutes = 8
 
 $LongSongsToInclude = @()
 
 <# First date to create the playlist for #>
-[datetime]$StartDate = '2023-11-08'
+[datetime]$StartDate = '2023-11-15'
 
-$ForceCountryWhen = @(1)
+$BoostGenreWhenMaxPct = 65
+$CountryBoostListMaxPct = 75
+
+$BoostTheseGenresPct = @{'Ska' = 5
+    'Southern Rock'            = 5
+    'Rock'                     = 30
+    'Reggae'                   = 15
+    'New Wave'                 = 15
+    'Country'                  = 30
+}
+
 
 <# Where to look for music #>
 $MusicSourcePath = (Join-Path $($env:USERPROFILE) 'Music')
@@ -309,8 +319,8 @@ $SkipTheseGenres = @('Soundtrack'
 
 <# Limit the number of songs included for these genres #>
 $GenreSongLimits = @{'Punk' = 5
-    'New Wave'              = 50
-    'Metal/Hard Rock'       = 50
+    'New Wave'              = 40
+    'Metal/Hard Rock'       = 30
     'Celtic'                = 2
     'Latin'                 = 5
     'Cajun'                 = 1
@@ -320,31 +330,39 @@ $GenreSongLimits = @{'Punk' = 5
     'Zydeco'                = 1
     'Swing'                 = 3
     'Blues'                 = 3
-    'Surf Rock'             = 5
+    'Surf Rock'             = 4
     'Folk'                  = 5
     'Polka'                 = 1
     'Rap/Hip Hop'           = 2
     'Funk'                  = 5
-    'Rockabilly'            = 10
-    'Western Swing'         = 10
+    'Rockabilly'            = 8
+    'Western Swing'         = 8
     'R&B'                   = 10
 }
 
-
-$BoostTheseGenres = @('Ska'
-    , 'Southern Rock'
-    , 'Rock'
-    , 'Reggae'
-    , 'New Wave'
-    , 'Country'
-)
+$MustIncludeArtists = @{'Jason Aldean' = 5
+    'Cody Jinks'                       = 5
+    'Carrie Underwood'                 = 5
+    'Ashley McBryde'                   = 5
+    'Pistol Annies'                    = 5
+    'Dierks Bentley'                   = 5
+    'Kid Rock'                         = 5
+    'Puss N Boots'                     = 5
+    'Miranda Lambert'                  = 5
+    'Luke Bryan'                       = 5
+    'Jamey Johnson'                    = 5
+    'Chris Ledoux'                     = 5
+    'Dwight Yoakam'                    = 5
+}
 
 $CountryArtistsToBoost = @('Luke Bryan'
     , 'Steve Earle'
     , 'Ashley McBryde'
     , 'Tim McGraw'
     , 'Colter Wall'
+    , 'Chris Stapleton & Morgane Stapleton'
     , 'Cale Tyson'
+    , 'Cody Jinks'
     , 'Hank Williams III'
     , 'Joe Ely'
     , 'Miranda Lambert'
@@ -590,8 +608,8 @@ try {
             }
             Write-Host ''
             Write-Progress -Complete -Activity "Parsing existing playlist for $($CurrentDate.ToString('ddd-dd'))" `
-                        -Status "$PctCompleteString Complete:" `
-                        -PercentComplete $PctComplete
+                -Status "$PctCompleteString Complete:" `
+                -PercentComplete $PctComplete
 
         }
     }
@@ -688,6 +706,7 @@ try {
                 
             # $SourceHashVal = Get-HashFromStringStream -stringToHash $TitleTrack -hashAlgo MD5
             $SourceHashVal = $TrackHash['HashVal']
+            $Item = $TrackHash['ItemPath']
 
             <# Get the Hash value of the Path/Song #>
             # $SourceHashResults = Get-FileHash -LiteralPath $Item -Algorithm MD5                 
@@ -697,7 +716,7 @@ try {
 
             <# Basic validation of the Song #>
 
-            $TotalMinutes = $TrackHash['TotalMinutes']
+            [decimal]$TotalMinutes = $TrackHash['TotalMinutes']
 
             <#
                 $MaxSongLengthMinutes = 8
@@ -995,7 +1014,6 @@ try {
 
             if ($HashGenreToArtist.ContainsKey($GenreHashKey)) {
 
-      
                 foreach ($ArtistHash in $($HashGenreToArtist[$GenreHashKey]).Keys | Sort-Object) {
                     <# $currentItemName is the current item #>
                     $Artist = $HashToArtist[$ArtistHash]
@@ -1075,10 +1093,14 @@ try {
             <# This is used to build the output playlist name #>
             $CurrentDate = $StartDate.AddDays($DayIdx)
 
+            <# To Do: Need a switch for this #>
+            $OutAuditTempFile = New-TemporaryFile
+
             Write-Verbose "$($spacer*1) $($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy'))"
 
             $DayKey = $($CurrentDate.ToString('yyyyMMdd'))
             $startBuildListDateTime = Get-Date
+
 
             if (-not $OutPutHash.ContainsKey($DayKey)) {
                 $OutPutHash[$DayKey] = @{}
@@ -1095,12 +1117,15 @@ try {
                 $RollingIncludedTracks[$DayKey]['ArtistTitle'] = @{}
             }
 
-            $TotalListMinutes = 0
+            
+            [decimal]$TotalListMinutes = 0
             $PriorProgressPctNbr = 0
 
             $ArtistsToChooseFrom.Clear()
             $TitlesToChooseFrom.Clear()
             $PriorProgressPctNbr = 0
+
+            $TrackCount = 0
 
             <# Calculate Pct complete for progress display #>
             $RawPctComplete = 0
@@ -1117,48 +1142,313 @@ try {
 
             # $TargetIterations
 
+            $OutputString = "$($spacer*1) Initialize List for $($CurrentDate.ToString('ddd/dd'))"
+            Set-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
+            $OutputString = "$($spacer*1) $('-'*50)"
+            Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+            $OutputString = ''
+            Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
+            <# Add set of tracks from favorite artists from $MustIncludeArtists hash #>
+            :BoostArtistLoop foreach ($BoostArtist in $MustIncludeArtists.Keys) {
+
+                $ArtistHashKey = $ArtistToHash[$BoostArtist]
+                Write-Verbose "$($spacer*1)$($spaceTwo) $($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) Artist --> $Artist"
+
+                $TargetCount = $MustIncludeArtists[$BoostArtist]
+                $BoostArtistCount = 0
+
+                $AlbumCount = $($HashArtistToAlbum[$ArtistHashKey]).Count
+
+                :ArtistLoop while ($BoostArtistCount -le $TargetCount) {
+
+                    if ($BoostArtistCount -gt $TargetCount) {
+                        <# We have enough of the boosted artist #>
+                        break ArtistLoop
+                    }
+                    $SkipMessage = ''
+                    $IncludeTrack = $true
+                    $FoundTrack = $false
+
+                    <# Get one of the albums for the artist #>
+                    $AlbumHashKey = $($($HashArtistToAlbum[$ArtistHashKey]).Keys) | Get-Random
+                    $AlbumToCheck = $HashToAlbum[$AlbumHashKey]
+
+                    $OutputString = "$($spacer*1)$($spaceTwo)$($BoostArtistCount.ToString().PadLeft(2))) Boost Artist: Artist: $BoostArtist Album: $AlbumToCheck"
+                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                
+                    Write-Host "$($spacer*1)$($spaceTwo*2)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) ($BoostArtist) Album --> $AlbumToCheck <$AlbumHashKey>"
+
+                    $SourceHashVal = $($($HashAlbumToTitle[$AlbumHashKey]).Keys) | Get-Random
+
+                    <# Hash of the Title only #>
+                    $TitleHashKey = $MusicHash[$SourceHashVal]['TrackKeys']['Title']
+                    $TitleTrack = $HashToTitleTrack[$TitleHashKey]
+
+                    Write-Verbose "$($spacer*1)$($spaceTwo*3)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) Song --> $TitleTrack"
+
+                    $OutputString = "$($spacer*2)$($spaceTwo) Track Check: Artist: $BoostArtist Album: $AlbumToCheck Candidate Track: $TitleTrack"
+                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
+                    <# $SourceHashVal is the hash of the full path including the Album/Artist/Track #>
+
+                    $ArtistSongKey = $ArtistHashKey + '|' + $TitleHashKey
+                    
+                    $DaysChecked = 0
+                    :PriorDayLoop foreach ($PriorDayKey in $RollingIncludedTracks.Keys | Sort-Object -Descending ) {
+                        $DaysChecked++
+                        
+                        if ($DaysChecked -gt $DaysToLookBackForNoRepeat) {
+                            break PriorDayLoop
+                        }
+
+                        if ($($RollingIncludedTracks[$PriorDayKey]['TitleTrack']).ContainsKey($SourceHashVal)) {
+                            $SkipMessage = "Track was included on $PriorDayKey list"
+                            $FoundTrack = $true
+                        }
+                        <# Check the Artist Song #>
+                        
+                        if ($($RollingIncludedTracks[$PriorDayKey]['ArtistTitle']).ContainsKey($ArtistSongKey)) {
+                            $SkipMessage = "Artist/Track was included on $PriorDayKey list"
+                            $FoundTrack = $true
+                        }
+
+                        if ($FoundTrack) {
+                            break PriorDayLoop
+                        }
+
+                    }
+                
+                    $IncludeTrack = -not $FoundTrack
+
+                    <# Check the Probability of including #>
+                    if ($IncludeTrack) {
+                        <#
+                            The Track is notionally valid.  Check probability of including based on stars
+                        #>
+                        [string]$RatingStars = $MusicHash[$SourceHashVal]['TrackDetail']['RatingStars']
+                        if ($RatingStars.Length -eq 0) {
+                            $RatingStars = 'X'
+                        }
+                        <# Generate a random number 1-10 #>
+                        [int]$RatingStarFloor = $StarRatingInclusionPtcs[$RatingStars]
+                        $IncludeTrackIndex = Get-Random -Minimum 1 -Maximum 101
+                        if ($RatingStarFloor -gt $IncludeTrackIndex) {
+                            <# Outside of the range -Flip Include to false
+                                1 Star - 30% Included
+                                2 Star - 40%
+                                3 Star - 50%
+                                4 Star - 60%
+                                5 Star - 70%
+
+                                $StarRatingInclusionPtcs = @{
+                                    '1'  = 5
+                            #>
+                            $SkipMessage = "Skip track due to ratings - $RatingStars"
+                            $IncludeTrack = $false
+                        }
+                    }
+
+                    if ($IncludeTrack) {
+
+                        $BoostArtistCount++
+
+                        Write-Verbose "$($spacer*1)$($spaceTwo*3)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) --> $TitleTrack (Saved)"
+                        <# Update the output etc #>
+                        [decimal]$TotalMinutes = $MusicHash[$SourceHashVal]['TrackDetail']['TotalMinutes']
+                        [decimal]$TotalListMinutes += $TotalMinutes
+
+                        $OutputString = "$($spacer*2)$($spaceTwo) Include Track: Artist: $BoostArtist Album: $AlbumToCheck Candidate Track: $TitleTrack Total List Minutes: $($TotalListMinutes.ToString('N'))"
+                        Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                        $OutputString = ''
+                        Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                        <# Update the Prior List details #>
+                        if (-not $($RollingIncludedTracks[$PriorDayKey]['TitleTrack']).ContainsKey($SourceHashVal)) {
+                            $RollingIncludedTracks[$DayKey]['TitleTrack'][$SourceHashVal] = 1
+                        }
+
+                        if (-not $($RollingIncludedTracks[$DayKey]['ArtistTitle']).ContainsKey($ArtistSongKey)) {
+                            $RollingIncludedTracks[$DayKey]['ArtistTitle'][$ArtistSongKey] = 1
+                        }
+
+                        <# Update the output hash #>
+                        if (-not $($OutPutHash[$DayKey]['TitleTrackList']).Contains($SourceHashVal)) {
+                            $OutPutHash[$DayKey]['TitleTrackList'][$SourceHashVal] = $TitleHashKey
+                        }
+
+                        if (-not $($OutPutHash[$DayKey]['GenreDetails']).Contains($GenreHashKey)) {
+                            $OutPutHash[$DayKey]['GenreDetails'][$GenreHashKey] = @{}
+                        }
+                        $OutPutHash[$DayKey]['GenreDetails'][$GenreHashKey][$SourceHashVal] = 1
+
+                        if (-not $($OutPutHash[$DayKey]['ArtistDetails']).Contains($ArtistHashKey)) {
+                            $OutPutHash[$DayKey]['ArtistDetails'][$ArtistHashKey] = @{}
+                        }
+                        $OutPutHash[$DayKey]['ArtistDetails'][$ArtistHashKey][$SourceHashVal] = 1
+
+                        if (-not $($OutPutHash[$DayKey]['AlbumDetails']).Contains($AlbumHashKey)) {
+                            $OutPutHash[$DayKey]['AlbumDetails'][$AlbumHashKey] = @{}
+                        }
+                        $OutPutHash[$DayKey]['AlbumDetails'][$AlbumHashKey][$SourceHashVal] = 1
+                    }
+                    else {
+                        $OutputString = "$($spacer*2)$($spaceTwo)  Skip Track: Artist: $BoostArtist Album: $AlbumToCheck Candidate Track: $TitleTrack Total List Minutes: $($TotalListMinutes.ToString('N')) - $SkipMessage"
+                        Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                        $OutputString = ''
+                        Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
+                        Write-Verbose "$($spacer*1)$($spaceTwo*3)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) --> $TitleTrack (Skipped)"
+                    }
+
+                    # TargetIterations
+                    <# Calculate Pct complete for progress display #>
+                    $RawPctComplete = $($TotalListMinutes / $TargetPlayListDuration)
+                    $PctComplete = [math]::Floor(($RawPctComplete * 100))
+                    if ($PctComplete -gt 100) {
+                        $PctComplete = 100
+                    }
+                    $PctCompleteString = $($RawPctComplete.ToString('P'))
+                    $timeStr = Get-FormattedTimeString -startTimestamp $startBuildListDateTime
+
+                    # -CurrentOperation "Processing $($RowsProcessed.ToString().PadLeft(4)) of $($SampleRows.ToString().PadLeft(4))"
+                    # -Status "$PctCompleteString Complete:"
+
+                    if ($RowsProcessed -eq 1 -or $PctComplete -ne $PriorProgressPctNbr) {
+                        Write-Progress -Activity "Building the Playlist for $($CurrentDate.ToString('MM/dd/yy'))" `
+                            -Status "$PctCompleteString Complete (Elapsed $timeStr)" `
+                            -Id $DayIdx -PercentComplete $PctComplete
+                        $PriorProgressPctNbr = $PctComplete
+                    }
+
+                    if ($TotalListMinutes -ge $TargetPlayListDuration) {
+                        break BoostArtistLoop
+                    }
+
+                }
+                if ($TotalListMinutes -ge $TargetPlayListDuration) {
+                    break BoostArtistLoop
+                }
+
+            }
+
             :ListLoop while ($TotalListMinutes -lt $TargetPlayListDuration) {
+
+                $TrackCount++
 
                 Write-Verbose "$($spacer*1) $($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) --> $($TotalListMinutes.ToString())"
             
+                <# Audit Genre info #>
+                $OutputString = "$($spacer*1) $($TrackCount.ToString().PadLeft(2))) Track initialization:"
+                Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                $OutputString = ''
+                Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
                 <# Re-set the Genre order for the current iteration #>
                 $GenresToChooseFrom.Clear()
                 $GenreCount = $ValidGenresToChooseFrom.Count
 
-                $GenresToChooseFrom = $ValidGenresToChooseFrom | Sort-Object | Get-Random -Shuffle
-            
-                <# Force Gener to Country 
-                    33% Change that we set Genre to Country.
-                #>
-                $CurrentCountryCheck = Get-Random -Minimum 1 -Maximum 3
+                $GenreBoostCheck = Get-Random -Minimum 0 -Maximum 100
+                $GenreString = ''
+                
+                if ($GenreBoostCheck -le $BoostGenreWhenMaxPct) {
+                    <# Boost the Genre #>
+                    $CurrentBoostGenreIdx = -1
+                    $BoostGenreHashKey = $null
+                    $Genre = $null
+                    :SelectBoostGenreLoop foreach ($BoostGenre in $BoostTheseGenresPct.Keys) {
+                        
+                        $CurrentBoostGenreIdx = Get-Random -Minimum 0 -Maximum 100
+                        
+                        $BoostGenrePct = $BoostTheseGenresPct[$BoostGenre]
 
-                if ($ForceCountryWhen.Contains($CurrentCountryCheck)) {
-                    $GenresToChooseFrom.Clear()
-                    $CurrentBoostGenreIdx = Get-Random -Minimum 0 -Maximum $($BoostTheseGenres.Count - 1)
+                        if ($CurrentBoostGenreIdx -le $BoostGenrePct) {
+                            <# This is the genre to use #>
+                            $BoostGenreHashKey = $GenreToHash[$BoostGenre]
+                            if ($null -ne $BoostGenreHashKey) {
+                                $Genre = $BoostGenre
+                                <# Decode the genre list for display #>
+                                $GenreString += $Genre
+                                $GenreString += ' - '
 
-                    $BoostGenre = $BoostTheseGenres[$CurrentBoostGenreIdx]
+                                [void]$GenresToChooseFrom.Add($BoostGenreHashKey)
+                                break SelectBoostGenreLoop
+                            }
 
-                    $BoostGenreHashKey = $GenreToHash[$BoostGenre]
+                        }
 
-                    [void]$GenresToChooseFrom.Add($BoostGenreHashKey)
+                    }
+                    
+                    $OutputString = "$($spacer*1)$($spaceTwo) Boost Genre: Idx: $($CurrentBoostGenreIdx.ToString()) Genre: $Genre Count: $($BoostTheseGenresPct.Count.ToString()) Hash: $BoostGenreHashKey"
+                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
 
                 }
+                else {
+                    $GenresToChooseFrom = $ValidGenresToChooseFrom | Sort-Object | Get-Random -Shuffle
+                    <# Decode the genre list for display #>
+                    $GenresToChooseFrom | ForEach-Object {
+                        $GenreString += $_
+                        $GenreString += ' - '
+
+                    }
+                }
                 
+            
+                <# Boost Bias Genre Selection
+                
+                $BoostGenreWhenMaxPct = 45
+                $CountryBoostListMaxPct = 55
+
+                $BoostTheseGenresPct = @{'Ska' = 5
+                    'Southern Rock' = 5
+                    'Rock' = 30
+                    'Reggae' = 15
+                    'New Wave' = 15
+                    'Country' = 30
+                }
+
+                #>
+
+
+                $OutputString = "$($spacer*1)$($spaceTwo) Boost Genre Check Code: $($GenreBoostCheck.ToString()) vs $($BoostGenreWhenMaxPct.ToString())"
+                Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
+            
+                $OutputString = "$($spacer*1)$($spaceTwo) Genre List: $GenreString Count: $($($GenresToChooseFrom.Count).ToString())"
+                Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
                 :GenreLoop foreach ($GenreHashKey in $GenresToChooseFrom) {
 
                     if ($HashedGenresToSkip.Count -gt 0 -and $HashedGenresToSkip.Contains($GenreHashKey)) {
                         continue GenreLoop
                     }
 
+                    if (-not $HashToGenre.ContainsKey($GenreHashKey)) {
+                        $OutputString = "$($spacer*1)$($spaceTwo) Genre Loop Genre Error: $GenreHashKey does not exist in HashToGenre map"
+                        Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                        continue GenreLoop
+                    }
+
                     $Genre = $HashToGenre[$GenreHashKey]
-                    Write-Verbose "$($spacer*1) $($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) Genre --> $Genre"
+                    Write-Verbose "$($spacer*1) $($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('ddd/dd')) Genre --> $Genre"
+
+                    $OutputString = "$($spacer*1)$($spaceTwo) Selected: $Genre"
+                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
 
                     <# Check the number of songs we have found for the current genre #>
                     if ($GenreSongLimits.ContainsKey($Genre)) {
 
+                        $OutputString = "$($spacer*1)$($spaceTwo) Genre Limit: $($($GenreSongLimits[$Genre]).ToString())"
+                        Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
                         if ($($OutPutHash[$DayKey]['GenreDetails']).Contains($GenreHashKey)) {
 
+                            $OutputString = "$($spacer*1)$($spaceTwo) Genre Already Included: $($($OutPutHash[$DayKey]['GenreDetails'][$GenreHashKey]).Count.ToString())"
+                            Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
                             if ($($OutPutHash[$DayKey]['GenreDetails'][$GenreHashKey]).Count -ge $($GenreSongLimits[$Genre])) {
+                                
                                 <# We have met the limit for the genre, continue #>
                                 continue GenreLoop
                             }
@@ -1183,20 +1473,33 @@ try {
                         <# Check for Boost #>
 
                         # CountryArtistsToBoost
+                        $CurrentCountryCheck = Get-Random -Minimum 1 -Maximum 100
 
-                        $CurrentCountryCheck = Get-Random -Minimum 1 -Maximum 3
+                        #$CountryBoostListMaxPct = 55
 
-                        if ($ForceCountryWhen.Contains($CurrentCountryCheck)) {
+                        if ($CurrentCountryCheck -le $CountryBoostListMaxPct) {
                             $ArtistsToChooseFrom.Clear()
-                            $CurrentBoostArtistIdx = Get-Random -Minimum 0 -Maximum $($CountryArtistsToBoost.Count - 1)
+                            $CurrentBoostArtistIdx = -1
+                            $BoostArtistHashKey = $null
+                            $BoostArtist = $null
+                            :SelectBoostArtistLoop foreach ($PlaceHolder in $CountryArtistsToBoost) {
+                                $BoostArtistHashKey = $null
+                                $CurrentBoostArtistIdx = Get-Random -Minimum 0 -Maximum $($CountryArtistsToBoost.Count - 1)
+                                $BoostArtist = $CountryArtistsToBoost[$CurrentBoostArtistIdx]
 
-                            $BoostArtist = $CountryArtistsToBoost[$CurrentBoostArtistIdx]
-
-                            $BoostArtistHashKey = $ArtistToHash[$BoostArtist]        
-
-                            [void]$ArtistsToChooseFrom.Add($BoostArtistHashKey)
-
+                                if ($ArtistToHash.ContainsKey($BoostArtist)) {
+                                    $BoostArtistHashKey = $ArtistToHash[$BoostArtist]  
+                                    if ($null -ne $BoostArtistHashKey) {
+                                        [void]$ArtistsToChooseFrom.Add($BoostArtistHashKey)
+                                        break SelectBoostArtistLoop
+                                    }
+                                }
+                            }
+                            $OutputString = "$($spacer*1)$($spaceTwo) Boost Artist: Idx: $($CurrentBoostArtistIdx.ToString()) Artist: $BoostArtist Count: $($CountryArtistsToBoost.Count.ToString()) Hash: $BoostArtistHashKey"
+                            Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+    
                         }
+                           
                     }
                     :ArtistLoop foreach ($ArtistHashKey in $ArtistsToChooseFrom) {
 
@@ -1225,13 +1528,16 @@ try {
 
                             :TrackLoop foreach ($SourceHashVal in $TitlesToChooseFrom) {
                             
+                                $SkipMessage = ''
                                 <# Hash of the Title only #>
                                 $TitleHashKey = $MusicHash[$SourceHashVal]['TrackKeys']['Title']
 
                                 $TitleTrack = $HashToTitleTrack[$TitleHashKey]
                                 Write-Verbose "$($spacer*1)$($spaceTwo*3)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) Song --> $TitleTrack"
 
-
+                                $OutputString = "$($spacer*2)$($spaceTwo) Track Check: Artist: $Artist Album: $Album Candidate Track: $TitleTrack"
+                                Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+    
                                 <# $SourceHashVal is the hash of the full path including the Album/Artist/Track #>
 
                                 $ArtistSongKey = $ArtistHashKey + '|' + $TitleHashKey
@@ -1247,11 +1553,13 @@ try {
                                     }
 
                                     if ($($RollingIncludedTracks[$PriorDayKey]['TitleTrack']).ContainsKey($SourceHashVal)) {
+                                        $SkipMessage = "Track was included on $PriorDayKey list"
                                         $FoundTrack = $true
                                     }
                                     <# Check the Artist Song #>
                                 
                                     if ($($RollingIncludedTracks[$PriorDayKey]['ArtistTitle']).ContainsKey($ArtistSongKey)) {
+                                        $SkipMessage = "Artist/Track was included on $PriorDayKey list"
                                         $FoundTrack = $true
                                     }
 
@@ -1288,6 +1596,7 @@ try {
                                             '1'  = 5
 
                                     #>
+                                        $SkipMessage = "Skip track due to ratings - $RatingStars"
                                         $IncludeTrack = $false
                                     }
                                 }
@@ -1297,9 +1606,13 @@ try {
 
                                     Write-Verbose "$($spacer*1)$($spaceTwo*3)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) --> $TitleTrack (Saved)"
                                     <# Update the output etc #>
-                                    $TotalMinutes = $MusicHash[$SourceHashVal]['TrackDetail']['TotalMinutes']
-                                    $TotalListMinutes += $TotalMinutes
+                                    [decimal]$TotalMinutes = $MusicHash[$SourceHashVal]['TrackDetail']['TotalMinutes']
+                                    [decimal]$TotalListMinutes += $TotalMinutes
 
+                                    $OutputString = "$($spacer*2)$($spaceTwo) Include Track: Artist: $Artist Album: $Album Candidate Track: $TitleTrack Total List Minutes: $($TotalListMinutes.ToString('N'))"
+                                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                                    $OutputString = ''
+                                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
                                     <# Update the Prior List details #>
                                     if (-not $($RollingIncludedTracks[$PriorDayKey]['TitleTrack']).ContainsKey($SourceHashVal)) {
                                         $RollingIncludedTracks[$DayKey]['TitleTrack'][$SourceHashVal] = 1
@@ -1330,23 +1643,26 @@ try {
                                     }
                                     $OutPutHash[$DayKey]['AlbumDetails'][$AlbumHashKey][$SourceHashVal] = 1
 
-                                    <# We found a match for the target Genre. Go to the next one #>
-                                    break ArtistLoop
 
                                 }
                                 else {
+                                    $OutputString = "$($spacer*2)$($spaceTwo) Skip Track: Artist: $Artist Album: $Album Candidate Track: $TitleTrack Total List Minutes: $($TotalListMinutes.ToString('N')) - $SkipMessage"
+                                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+                                    $OutputString = ''
+                                    Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
+
                                     Write-Verbose "$($spacer*1)$($spaceTwo*3)$($DayIdx.ToString().PadLeft(2))) $($CurrentDate.ToString('MM/dd/yy')) --> $TitleTrack (Skipped)"
                                 }
                                 <#
-                                if (-not $OutPutHash.ContainsKey($DayKey)) {
-                                    $OutPutHash[$DayKey] = @{}
-                                    $OutPutHash[$DayKey]['TitleList'] = @{}
-                                    $OutPutHash[$DayKey]['TitleTrackList'] = @{}
-                                    $OutPutHash[$DayKey]['GenreDetails'] = @{}
-                                    $OutPutHash[$DayKey]['ArtistDetails'] = @{}
-                                    $OutPutHash[$DayKey]['AlbumDetails'] = @{}
-                                }
-                            #>
+                                    if (-not $OutPutHash.ContainsKey($DayKey)) {
+                                        $OutPutHash[$DayKey] = @{}
+                                        $OutPutHash[$DayKey]['TitleList'] = @{}
+                                        $OutPutHash[$DayKey]['TitleTrackList'] = @{}
+                                        $OutPutHash[$DayKey]['GenreDetails'] = @{}
+                                        $OutPutHash[$DayKey]['ArtistDetails'] = @{}
+                                        $OutPutHash[$DayKey]['AlbumDetails'] = @{}
+                                    }
+                                #>
                                 if ($TotalListMinutes -ge $TargetPlayListDuration) {
                                     break TrackLoop
                                 }
@@ -1370,6 +1686,12 @@ try {
                                         -Id $DayIdx -PercentComplete $PctComplete
                                     $PriorProgressPctNbr = $PctComplete
                                 }
+
+                                <# Get the next Genre #>
+                                break ArtistLoop
+
+                                
+
                             }
 
                             if ($TotalListMinutes -ge $TargetPlayListDuration) {
@@ -1386,7 +1708,12 @@ try {
                         break GenreLoop
                     }
                 }
+                $OutputString = ''
+                Add-Content -Path $($OutAuditTempFile.FullName) -Value $OutputString -Encoding Default
             }
+
+            <# Open Audit File #>
+            $OutPutHash[$DayKey]['AuditFilePath'] = $($OutAuditTempFile.FullName)
 
             <# End of day loop #>
             Write-Progress -Completed -Activity "Building the Playlist for $($CurrentDate.ToString('MM/dd/yy'))" `
@@ -1500,6 +1827,7 @@ try {
             Write-Host "$($spacer*1)$($spaceTwo) $('Distinct Genres'.PadRight($TitlePadLen,'.')): $($($OutPutHash[$DayKey]['GenreDetails']).Count.ToString('N0').PadLeft($MetricPadLen))"
             # Show Genre counts"
             # foreach ($GenreHashKey in $($OutPutHash[$DayKey]['GenreDetails']).Keys) {
+
             $($OutPutHash[$DayKey]['GenreDetails']).Keys | ForEach-Object {
                 $Genre = $HashToGenre[$_]
             
@@ -1642,8 +1970,11 @@ try {
             $OutLogTempFile = New-TemporaryFile
             $OutPlayListTempFile = New-TemporaryFile
 
+            
             $RowCount = 0
-            $($OutPutHash[$DayKey]['TitleTrackList']).Keys | ForEach-Object {
+
+
+            $($OutPutHash[$DayKey]['TitleTrackList']).Keys | Get-Random -Shuffle | ForEach-Object {
                 <# Get the keys for the outut #>
                 # $_ --> $SourceHashVal
             
@@ -1665,6 +1996,7 @@ try {
 
                 # $QualifiedSongFile = $MusicHash[$_]['TrackDetail']['Folder path'] # Does not include the file name (might have to join path)
                 # $QualifiedSongFile = $MusicHash[$_]['TrackDetail']['Path']
+
                 $QualifiedSongFile = $HashToFullPath[$_]
                 <# 
                 This will also work
@@ -1713,8 +2045,6 @@ try {
             
             if (-not $IsTest) {
 
-                
-                
                 $QualifiedTargetPlaylistFile = (Join-Path $OutputPath $OutputPlayListFileName)
 
                 Copy-Item -Path $($OutPlayListTempFile.FullName) -Destination $QualifiedTargetPlaylistFile `
@@ -1733,6 +2063,9 @@ try {
             <# Always open the log: #>
             Start-Process notepad++ $($OutLogTempFile.FullName)
         
+            # $OutPutHash[$DayKey]['AuditFilePath'] = $($OutAuditTempFile.FullName)
+            Start-Process notepad++ $($OutPutHash[$DayKey]['AuditFilePath'])
+
 
             Write-Host "$($spacer*1)$($spaceTwo) $("Saving $OutputPlayListFileName to".PadRight($TitlePadLen,'.')): $OutputPath"
             Write-Host ''

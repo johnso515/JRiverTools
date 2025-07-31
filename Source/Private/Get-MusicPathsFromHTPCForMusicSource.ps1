@@ -67,6 +67,7 @@ function Get-MusicPathsFromHTPCForMusicSource {
         
         [int]$private:mediaDriveNbr = 0
         [string]$private:mediaTargetBase = $null
+        [string]$private:ComputerName = $null
 
         [string]$private:baseDrivePath = $null
         
@@ -109,6 +110,10 @@ function Get-MusicPathsFromHTPCForMusicSource {
                 $mediaDriveNbr = $driveLetterToNumberMap[$DriveLetter]
                 $mediaTargetBase = "Media" +  $($mediaDriveNbr.ToString())
         
+                $ComputerName = Invoke-Command -Session $remoteSessionObj `
+                                    -ScriptBlock {  $env:COMPUTERNAME  } 
+
+                
                 $baseDrivePath = Invoke-Command -Session $remoteSessionObj `
                                 -ScriptBlock {  (Join-Path $using:rootString $using:mediaTargetBase)  } 
         
@@ -144,6 +149,7 @@ function Get-MusicPathsFromHTPCForMusicSource {
                             # Used (GB)     Free (GB)
                             FreeSpaceBytes = $driveName.Free
                             UsedSpaceBytes = $driveName.Used
+                            ComputerName = $ComputerName
                         }
                         
                     Write-Output $HTPCMusicPathObject

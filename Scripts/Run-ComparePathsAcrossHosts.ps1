@@ -4,8 +4,8 @@ using module 'C:\Users\johns\Projects\JRiverTools\Release\0.2.0\JRiverTools.psm1
 using module 'C:\Users\johns\Projects\CommonTextTools\Release\0.1.4\CommonTextTools.psm1'
 
 <# Debug #>
-. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Public\Compare-PathsAcrossHosts.ps1'
-. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Public\Build-PathFromParts.ps1'
+. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Public\Compare-SrcHostPathToTrgHost.ps1'
+. 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Public\Build-PathFromArray.ps1'
 
 . 'C:\Users\johns\Projects\VAASystemUtils\VAASystemUtils\Source\Private\Test-RemotePath.ps1'
 
@@ -22,9 +22,10 @@ $VerbosePreference = 'SilentlyContinue'  # $oldVerbose
 [bool]$private:ShowWhatIf = $false
 
 <# Run the job #>
-$LocalPathToCheck = '\\Syn414JNas\Media3\Music\Flac'
+# \\Syn414jNas\Media\Pictures 
+$LocalPathToCheck = '\\Syn414jNas\Backup\Debbie-Main\DebbieDDocs\WSHS82\Photos\Reunion Photos'
 $RemotePathToCheck = 'J:\Media3\Music\Flac'
-Compare-PathsAcrossHosts -RemoteComputer HTPC -LocalPath $LocalPathToCheck `
+Compare-SrcHostPathToTrgHost -RemoteComputer HTPC -LocalPath $LocalPathToCheck `
                         -RemotePath $RemotePathToCheck `
                         -Verbose:$ShowVerbose -WhatIf:$ShowWhatIf -Debug:$ShowDebug
 

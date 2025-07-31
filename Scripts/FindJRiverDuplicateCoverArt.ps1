@@ -20,7 +20,12 @@
             Improve deduplication.  
             Add support for filtering out compilation aibums (e.g. Richard Blade's ..)
             Move Hash from string to separate module
-            
+
+            Check for single songs with incorrect cover art - Something from a dif album
+                e.g. One or more songs for an album where the cover art is different from the remaining songs
+                    See Nitty-Gritty Dirt Band - First meeting of Merle Travis..
+
+                    See Cover of the rolling stone for example of default or unassigned cover art
 
 #>
 # ---------------

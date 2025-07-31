@@ -91,8 +91,8 @@ function Get-FileMetaDataHash {
         [int]$private:Hours = 0
         [int]$private:Minutes = 0
         [int]$private:Seconds = 0
-        [int]$private:SecondsFraction = 0
-        [int]$private:TotalMinutes = 0
+        [decimal]$private:SecondsFraction = 0
+        [decimal]$private:TotalMinutes = 0
 
         [hashtable]$private:hash = $null
 
@@ -163,10 +163,12 @@ function Get-FileMetaDataHash {
         
                 
             <# Calculate the progress towards a target list #>
-            $SecondsFraction = $Seconds / 60
-            $TotalMinutes = ($Hours * 60) + $Minutes + $SecondsFraction
+            [decimal]$SecondsFraction = $Seconds / 60
+            [decimal]$TotalMinutes = ($Hours * 60) + $Minutes + $SecondsFraction
 
             $hash['TotalMinutes'] = $TotalMinutes
+
+            $hash['ItemPath'] = $Item
 
             Write-Output $hash
 

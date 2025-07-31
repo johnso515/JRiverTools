@@ -1,0 +1,13 @@
+
+
+ robocopy E:\Music C:\Users\johns\Music /S /MT:4 /MIR  /XO
+ robocopy E:\Playlists C:\Users\johns\Playlists /S /MT:4 /MIR /XO
+ robocopy E:\ C:\Users\johns Database.mpl 
+
+
+
+Y:\Passthrough\Software\SpectreMirrorDocumentsToNas.bat
+
+// Skip .files (e.g. .git, .vscode, etc)
+
+  robocopy C:\Users\johns\OneDrive\Documents Y:\John-Spectre\Documents /S /MT:4 /MIR  /XO /L /XF *.dmp *.tmp ~* *.log *.iso "pagefile.sys" /xd .* Powershell WindowsPowerShell GitHub Camtasia

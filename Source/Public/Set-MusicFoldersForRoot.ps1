@@ -281,7 +281,7 @@ function Set-MusicFoldersForRoot {
                     #>
                     if ($ShowWhatIf -and $TargetMediaPath.Length -eq 0) {
                         <# Suppress Verbose for this specific call #>
-                        $TargetMediaPath = Build-PathFromParts -PathParts @($TargetRootPath, $MediaPath) -Verbose:$false
+                        $TargetMediaPath = Build-PathFromArray -PathParts @($TargetRootPath, $MediaPath) -Verbose:$false
                     }
                     if ($null -eq $SubPathsToCheck -or $SubPathsToCheck.Count -eq 0) {
                         $PathCount = 0
@@ -310,7 +310,7 @@ function Set-MusicFoldersForRoot {
                     
                         if ($ShowWhatIf -and $TargetMediaSubPath.Length -eq 0) {
                             <# Suppress Verbose for this specific call #>
-                            $TargetMediaSubPath = Build-PathFromParts -PathParts @($TargetMediaPath, $MediaSubPath) -Verbose:$false
+                            $TargetMediaSubPath = Build-PathFromArray -PathParts @($TargetMediaPath, $MediaSubPath) -Verbose:$false
                         }
 
                         Write-Verbose "$($spacer*3) Created/found $TargetMediaSubPath."
