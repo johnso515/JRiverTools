@@ -1,9 +1,9 @@
 
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
-. 'C:\Users\johns\Tools\PSScripts\PSIncludeFiles\includeUtilities.ps1'
+. 'C:\Src\Tools\PSScripts\PSIncludeFiles\includeUtilities.ps1'
 
-. 'C:\Users\johns\Tools\PSScripts\PSIncludeFiles\includeWWParityVars.ps1'
+. 'C:\Src\Tools\PSScripts\PSIncludeFiles\includeWWParityVars.ps1'
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 Import-Module ListUtils -Force
@@ -15,11 +15,11 @@ Import-Module FileHeaderUtils -Force
 Import-Module VistaAlAguaSecurityDetails -Force
 
 
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\GetLocalAlbumToCopyToHTPC.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\GetArtistPathFromHTPC.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\private\Get-MusicPathsFromHTPCForMusicSource.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\Get-HTPCAlbumDetails.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\functions\public\Copy-LocalAlbumsToHTPC.ps1'
+. 'C:\Src\Projects\JRiverTools\functions\public\GetLocalAlbumToCopyToHTPC.ps1'
+. 'C:\Src\Projects\JRiverTools\functions\public\GetArtistPathFromHTPC.ps1'
+. 'C:\Src\Projects\JRiverTools\functions\private\Get-MusicPathsFromHTPCForMusicSource.ps1'
+. 'C:\Src\Projects\JRiverTools\functions\public\Get-HTPCAlbumDetails.ps1'
+. 'C:\Src\Projects\JRiverTools\functions\public\Copy-LocalAlbumsToHTPC.ps1'
 
 
 $VerbosePreference = 'SilentlyContinue'  # $oldVerbose
@@ -225,7 +225,7 @@ Return
 
 
     # -------------
-    # C:\Users\johns\AppData\Roaming\J River\Media Center 25\Cover Art\Albums
+    # C:\Src\AppData\Roaming\J River\Media Center 25\Cover Art\Albums
 
     
 

@@ -123,9 +123,9 @@ Function Get-HashFromStringStream
 
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
-. 'C:\Users\johns\Tools\PSScripts\PSIncludeFiles\includeUtilities.ps1'
+. 'C:\Src\Tools\PSScripts\PSIncludeFiles\includeUtilities.ps1'
 
-. 'C:\Users\johns\Tools\PSScripts\PSIncludeFiles\includeWWParityVars.ps1'
+. 'C:\Src\Tools\PSScripts\PSIncludeFiles\includeWWParityVars.ps1'
 # -------------------------------------------------------------------------
 # -------------------------------------------------------------------------
 Import-Module ListUtils -Force
@@ -136,7 +136,7 @@ Import-Module RawFileUtils -Force
 Import-Module FileHeaderUtils -Force
 Import-Module VistaAlAguaSecurityDetails -Force
 
-# C:\Users\johns\AppData\Roaming\J River\Media Center 25\Cover Art\Albums
+# C:\Src\AppData\Roaming\J River\Media Center 25\Cover Art\Albums
 
 # Big Brother & The Holding Company - Cheap Thrills.jpg
 
@@ -199,7 +199,7 @@ try
     Write-Host ""
 
     # -------------
-    # C:\Users\johns\AppData\Roaming\J River\Media Center 25\Cover Art\Albums
+    # C:\Src\AppData\Roaming\J River\Media Center 25\Cover Art\Albums
 
     <#
         For now just call for the details directly. 
@@ -230,8 +230,8 @@ try
     Write-Host ""
     Write-Host ""
     # Sample Path
-    # C:\Users\johns\AppData\Roaming\J River\Media Center 30\Cover Art\Albums
-    $baseCheckPath = "C:\Users\johns\AppData\Roaming\J River\"
+    # C:\Src\AppData\Roaming\J River\Media Center 30\Cover Art\Albums
+    $baseCheckPath = "C:\Src\AppData\Roaming\J River\"
     $versionCount = 0
     $coverArtExts.Clear()
 
@@ -384,7 +384,7 @@ try
                     $versionCount++
                     $targetFullPathDetailExists = $false
 
-                    # C:\Users\johns\AppData\Roaming\J River\Media Center 30\Cover Art\Albums
+                    # C:\Src\AppData\Roaming\J River\Media Center 30\Cover Art\Albums
                     $jRiverVersion = $jRiverVersionStub + " " + $jRiverVersion
 
                     $jRiverStub = $jRiverCoverArtBase + "\" + $jRiverVersion
@@ -415,7 +415,7 @@ try
                     
                 }
             #>
-        # C:\Users\johns\AppData\Roaming\J River
+        # C:\Src\AppData\Roaming\J River
         $filterString = '*Media Center*'
         $targetPathDetail = Invoke-Command -Session $remoteSessionObj `
             -ScriptBlock { Get-ChildItem -Path $using:driveRootString -Recurse -Filter $using:filterString `
@@ -513,7 +513,7 @@ try
         }
 
         # Check the Base music path:
-        # C:\Users\johns\Music\HDtracks
+        # C:\Src\Music\HDtracks
         $versionCount++
         Write-Host ""
         Write-Host "$($spacer)$($spaceTwo) Checking for the Music folder: <Root> $rootString <Drive> $drive <Drive Number> $mediaDriveNbr"

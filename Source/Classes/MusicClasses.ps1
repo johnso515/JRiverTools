@@ -11,8 +11,8 @@ class Location {
 
 # Debug
 
-. 'C:\Users\johns\Projects\JRiverTools\enums\MusicSources.ps1'
-. 'C:\Users\johns\Projects\JRiverTools\enums\MusicEncodings.ps1'
+. 'C:\Src\Projects\JRiverTools\enums\MusicSources.ps1'
+. 'C:\Src\Projects\JRiverTools\enums\MusicEncodings.ps1'
 
 class MusicAlbum {
     <# Define the class. Try constructors, properties, or methods. #>
